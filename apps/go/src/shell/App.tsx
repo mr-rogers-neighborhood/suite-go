@@ -49,12 +49,23 @@ Object.assign(globalThis, {
       return packs.install(bytes);
     },
     list: () => packs.list(),
+    setIdleRelease: (ms: number) => {
+      IDLE_RELEASE_MS = ms;
+    },
     uninstall: (id: string) => packs.uninstall(id),
   },
 });
 // Painted before the first render, so no frame flashes the browser's default palette.
 paintTheme();
 const theme = resolveTheme();
+
+/**
+ * How long a backgrounded module stays mounted before it is released and its edit flushed.
+ *
+ * A `let` so that `__suiteGoDev.setIdleRelease` can shorten it for a test; five minutes is
+ * too long to verify by hand and an unverified timer is a timer that silently does nothing.
+ */
+let IDLE_RELEASE_MS = 5 * 60_000;
 
 type Route =
   | { readonly kind: "home" }
@@ -100,6 +111,40 @@ export function App() {
   const openModule = useCallback((moduleId: string, intent?: CaptureIntent) => {
     setRoute(intent ? { kind: "module", moduleId, intent } : { kind: "module", moduleId });
   }, []);
+
+  /**
+   * Background discipline.
+   *
+   * Leaving a module flushes it, because `dispose` saves. So the way to make backgrounding
+   * safe is to release the module after the person has been gone long enough to be done —
+   * not immediately, which would throw away a scroll position someone expects to return to.
+   *
+   * Five minutes is a deliberate middle: WeChat suspends a mini program's JS thread after
+   * five seconds and destroys it after thirty minutes, and we can afford neither the first
+   * (this module is the only thing holding an unsaved edit) nor the last (it shares a heap
+   * with everything else). The release path is the same `closeModule`, so there is one
+   * teardown rather than two that could disagree.
+   */
+  const idleRelease = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const subscription = NativeApp.addListener("appStateChange", ({ isActive }) => {
+      if (idleRelease.current) {
+        clearTimeout(idleRelease.current);
+        idleRelease.current = null;
+      }
+      if (!isActive && route.kind === "module") {
+        idleRelease.current = setTimeout(() => {
+          idleRelease.current = null;
+          void closeModule();
+        }, IDLE_RELEASE_MS);
+      }
+    });
+    return () => {
+      if (idleRelease.current) clearTimeout(idleRelease.current);
+      void subscription.then((handle) => handle.remove());
+    };
+  }, [route.kind, closeModule]);
 
   // Android's back button belongs to the container, not to a module: from a module
   // it returns home, and from home it leaves the app.
