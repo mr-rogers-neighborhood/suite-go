@@ -51,7 +51,12 @@ pnpm android:watch        # the same, again, on every save
 pnpm android:devices      # what adb can see
 pnpm android:emulator --start suite-go-atd
 pnpm android:eval "…"     # evaluate an expression in the running WebView
+pnpm planner:build        # prove Planner's renderer still builds as a web bundle
 ```
+
+`planner:build` writes only into `apps/go/planner-dist` and `apps/go/.vite-planner`, so it never dirties
+the Planner checkout. It is not wired into the shell yet: [docs/reference/planner.md](docs/reference/planner.md)
+carries the one decision that blocks it.
 
 ## Verify
 

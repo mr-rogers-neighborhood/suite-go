@@ -38,9 +38,27 @@ export interface SuiteGoModuleRegistration {
   readonly view: ComponentType<ModuleViewProps>;
   /** Present when the module declared `capture`. Runs only after mount. */
   readonly capture?: CaptureHandler;
+
+  /**
+   * Put whatever this app's renderer expects into place, and return its removal.
+   *
+   * This is the seam a full application uses. Planner's renderer reads
+   * `window.suitePlanner` and refuses to boot without it; the *Planer module* builds
+   * that object out of the host and installs it here. The container never learns the
+   * global's name, and there is no table of app ids anywhere in `apps/go`.
+   *
+   * Runs before the view renders, and the returned function runs exactly once on
+   * leave. A module whose install throws is reported and not mounted, because a view
+   * that boots without its bridge would fail in a way that looks like a domain bug.
+   */
+  readonly install?: (host: ModuleHost) => InstallCleanup;
+
   /** Called when the person leaves. Must release listeners, timers and document handles. */
   dispose(): void | Promise<void>;
 }
+
+/** What `install` returns: the removal for whatever it put in place, or nothing. */
+export type InstallCleanup = (() => void) | undefined;
 
 export interface ModuleViewProps {
   readonly host: ModuleHost;

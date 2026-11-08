@@ -18,3 +18,8 @@ apps/go/dist/
 
 # A staged APK that `android:watch` reinstall loop replaces in place.
 .dev/
+
+# The Planner renderer, built as a web bundle to prove it can be. Not wired into the
+# shell yet; see docs/reference/planner.md for the open question.
+apps/go/planner-dist/
+apps/go/.vite-planner/

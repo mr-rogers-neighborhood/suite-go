@@ -3,10 +3,12 @@ import type { CaptureIntent, ModuleHost } from "@suite/go";
 import { createModuleRegistry } from "@suite/go";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createDocumentStore } from "../host/documents.js";
+import { createFileService } from "../host/files.js";
 import { createPins, orderModules } from "../host/pins.js";
 import { createRecents, type RecentEntry } from "../host/recents.js";
 import { createKeyValueStore } from "../host/storage.js";
 import { applyDensity, resolveTheme } from "../host/theme.js";
+import { canvasModule } from "../modules/canvas/index.js";
 import { scratchModule } from "../modules/scratch/index.js";
 import { Home } from "./Home.js";
 import { MountedModule } from "./MountedModule.js";
@@ -21,11 +23,12 @@ import { MountedModule } from "./MountedModule.js";
  * There is no branch on a domain id anywhere in this file. If one appears, the
  * container has started learning a domain.
  */
-const registry = createModuleRegistry([scratchModule]);
+const registry = createModuleRegistry([scratchModule, canvasModule]);
 const documents = createDocumentStore();
 const shellStorage = createKeyValueStore("shell");
 const pins = createPins(shellStorage);
 const recents = createRecents(shellStorage);
+const files = createFileService();
 const theme = resolveTheme();
 
 type Route =
@@ -100,6 +103,7 @@ export function App() {
         },
         close: closeModule,
       },
+      files,
       recents: {
         remember: (documentId, title) => {
           // Update the list when the write lands, not when the route changes.

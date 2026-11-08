@@ -24,7 +24,8 @@
     "android:install": "node scripts/android.mjs install",
     "android:watch": "node scripts/android.mjs watch",
     "android:emulator": "node scripts/android.mjs emulator",
-    "android:eval": "node scripts/webeval.mjs"
+    "android:eval": "node scripts/webeval.mjs",
+    "planner:build": "pnpm --filter @suite/go-app exec vite build --config planner.vite.config.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.5",

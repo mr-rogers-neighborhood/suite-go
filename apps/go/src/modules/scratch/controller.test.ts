@@ -67,6 +67,11 @@ function hostWith(store: DocumentStore) {
       keys: async () => [],
     },
     navigation: { setTitle: () => undefined, close: () => undefined },
+    files: {
+      pickOpen: async () => null,
+      write: async () => ({ ok: true, uri: "file:///documents/test" }),
+      share: async () => ({ ok: false, reason: "cancelled" }),
+    },
     recents: {
       remember: (_documentId, title) => void remembered.push(title),
       forget: () => undefined,

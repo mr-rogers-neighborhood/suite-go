@@ -1,16 +1,14 @@
 import type { CaptureIntent, ModuleHost, SuiteGoModule } from "@suite/go";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { mountModule } from "./mount.js";
 
 /**
  * A module, mounted, with a frame the container owns.
  *
  * The container supplies the back affordance and the module's name; the module
- * supplies everything inside. Disposal is an effect cleanup, so leaving by any route
- * — back button, hardware back, a future deep link — runs it exactly once.
- *
- * Registration happens once per mount, deliberately. A domain's `register` is where
- * it opens its document, so caching a registration across mounts would reuse a
- * disposed one.
+ * supplies everything inside. Mounting goes through `mountModule`, which registers,
+ * installs the app's bridge and hands back one idempotent cleanup — so leaving by any
+ * route, and StrictMode's double mount in development, both settle to one teardown.
  */
 export function MountedModule({
   module,
@@ -23,21 +21,57 @@ export function MountedModule({
   readonly intent?: CaptureIntent;
   readonly onClose: () => void;
 }) {
-  const [registration] = useState(() => module.register(host));
+  const [outcome] = useState(() => mountModule(module, host));
+  const [ready, setReady] = useState(false);
+  const cleanup = useRef(outcome.ok ? outcome.cleanup : null);
+  const disposed = useRef(false);
 
   useEffect(() => {
+    setReady(true);
     return () => {
-      void registration.dispose();
+      if (disposed.current) return;
+      disposed.current = true;
+      void cleanup.current?.();
     };
-  }, [registration]);
+  }, []);
 
   useEffect(() => {
-    if (!intent) return;
-    void registration.capture?.(intent);
-  }, [registration, intent]);
+    if (!ready || !outcome.ok || !intent) return;
+    void outcome.registration.capture?.(intent);
+  }, [outcome, intent, ready]);
 
-  const View = registration.view;
+  if (!outcome.ok) {
+    return (
+      <ShellFrame module={module} onClose={onClose}>
+        <div className="scratch">
+          <p className="empty-headline">{module.name} could not start.</p>
+          <p className="empty-detail">
+            {outcome.stage === "install" ? "Its bridge refused to load. " : ""}
+            {outcome.message}
+          </p>
+        </div>
+      </ShellFrame>
+    );
+  }
 
+  const View = outcome.registration.view;
+
+  return (
+    <ShellFrame module={module} onClose={onClose}>
+      <View host={host} />
+    </ShellFrame>
+  );
+}
+
+function ShellFrame({
+  module,
+  onClose,
+  children,
+}: {
+  readonly module: SuiteGoModule;
+  readonly onClose: () => void;
+  readonly children?: React.ReactNode;
+}) {
   return (
     <div className="module">
       <header className="module-header">
@@ -46,9 +80,7 @@ export function MountedModule({
         </button>
         <span className="module-title">{module.name}</span>
       </header>
-      <div className="module-body">
-        <View host={host} />
-      </div>
+      <div className="module-body">{children}</div>
     </div>
   );
 }
