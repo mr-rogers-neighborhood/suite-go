@@ -68,11 +68,11 @@ export function Home({
       )}
       <Launch
         title="Suite Go"
-        tagline="One place to start. Open a domain, or capture something without opening one."
+        tagline="One place to start. Open an app, or capture something without opening one."
         hint={
           target
             ? `Capture goes to ${target.name} today.`
-            : "Capture turns on when a domain that accepts it is installed."
+            : "Capture turns on when an app that accepts it is installed."
         }
         recents={launchRecents}
         onOpenRecent={(documentId) => {
@@ -85,12 +85,12 @@ export function Home({
             className="touch rounded-xl border border-[var(--hairline)] px-4 text-[15px] font-medium text-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
             onClick={onInstall}
           >
-            Install a domain…
+            Install an app…
           </button>
         }
         recentEmpty={
           <EmptyState title="Nothing opened yet">
-            The last thing you opened shows up here, from any domain.
+            The last thing you opened shows up here, from any app.
           </EmptyState>
         }
         footer={<PrivacyLine sentence />}
@@ -111,7 +111,7 @@ export function Home({
           <input
             id="capture"
             type="text"
-            aria-label={target ? `Capture to ${target.name}` : "Capture to a domain"}
+            aria-label={target ? `Capture to ${target.name}` : "Capture to an app"}
             className="touch min-w-0 flex-1 rounded-xl border border-[var(--hairline)] bg-[var(--surface-sunk)] px-4 text-[16px] text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
             placeholder={target ? `Capture to ${target.name}…` : "Capture to…"}
             value={draft}
@@ -128,12 +128,12 @@ export function Home({
           </button>
         </form>
 
-        <section aria-labelledby="domains-heading" className="flex flex-col gap-2">
-          <h2 id="domains-heading" className="text-[13px] font-medium text-[var(--ink-muted)]">
-            Domains
+        <section aria-labelledby="apps-heading" className="flex flex-col gap-2">
+          <h2 id="apps-heading" className="text-[13px] font-medium text-[var(--ink-muted)]">
+            Apps
           </h2>
           {modules.length === 0 ? (
-            <EmptyState title="Domains you add will live here">
+            <EmptyState title="Apps you add will live here">
               Pin the ones you use to keep them at the top.
             </EmptyState>
           ) : (

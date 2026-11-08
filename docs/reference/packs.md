@@ -1,6 +1,12 @@
 # Domain packs
 
-How a domain arrives on a phone. This is the WeChat mini-program model with a signature: a small host,
+How a domain arrives on a phone.
+
+**Words.** A _domain_ is Canvas, Planner or Budget — an area of the product, and the word these docs use.
+An _app_ is what a person sees: the desktop launcher says "Install Suite Canvas" and "Install or update one
+app", so the shell's copy says "Install an app" and its section is headed "Apps". A _pack_ is the file that
+carries an app's code. Three words for three different things, and the UI never uses the middle one for the
+wrong one. This is the WeChat mini-program model with a signature: a small host,
 and functional packages that are installed and removed on demand.
 
 ## The pipeline, proven on a device

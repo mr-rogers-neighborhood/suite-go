@@ -90,6 +90,9 @@ when no accessibility service is bound — both of which read as defects that ar
   survives a module that throws, because one bad module must not leak the others.
 - Files are `camelCase.ts`, components are `PascalCase.tsx`, tests are co-located `*.test.ts`.
   Type-only imports use `import type`.
+- **UI copy says "app"; these docs say "domain".** The desktop launcher installs _apps_, so the shell
+  does too. "Domain" is the architecture word for the same three things, and "pack" is the file that
+  carries one. Do not let a refactor rename the user-facing string to match the internal term.
 - Conventional commit messages.
 - All verification is local. Name the local command; never claim an external service gates `main`.
 

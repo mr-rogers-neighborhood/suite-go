@@ -29,11 +29,11 @@ import { MountedModule } from "./MountedModule.js";
  * A pack, as the container sees it.
  *
  * The container still knows nothing about what the pack does: it has an id, a name and an
- * entry URL. An `isolated` pack renders in its own document; a `shared` one would render in the
- * shell's, which is not wired yet — so it says so rather than mounting a blank frame.
+ * entry URL. Every pack renders in its own document — the manifest refuses any other mode
+ * (ADR-0003) — so there is no branch here to get wrong.
  */
 function packAsModule(pack: InstalledPack): SuiteGoModule {
-  const { id, name, isolation } = pack.manifest;
+  const { id, name } = pack.manifest;
   return {
     id,
     name,
@@ -41,22 +41,14 @@ function packAsModule(pack: InstalledPack): SuiteGoModule {
     capabilities: ["documents"],
     accepts: [],
     register: () => ({
-      view: ({ host }: ModuleViewProps) =>
-        isolation === "isolated" ? (
-          <IsolatedModule
-            host={host}
-            entryUrl={pack.entryUrl}
-            title={name}
-            manifest={pack.manifest}
-          />
-        ) : (
-          <div className="scratch">
-            <p className="empty-headline">{name} needs the shared host.</p>
-            <p className="empty-detail">
-              This build only renders isolated packs. Rebuild {name} with isolation: "isolated".
-            </p>
-          </div>
-        ),
+      view: ({ host }: ModuleViewProps) => (
+        <IsolatedModule
+          host={host}
+          entryUrl={pack.entryUrl}
+          title={name}
+          manifest={pack.manifest}
+        />
+      ),
       dispose: () => undefined,
     }),
   };
