@@ -41,7 +41,21 @@ document through the host, saves twice, and the text is still there after leavin
 | CSS          | Shares the shell's preflight | Its own scope                                    |
 | Heap / crash | Shared                       | **Shared — an iframe is not a separate process** |
 
-The last row is the honest limit. Only a second native `WebView` buys a heap boundary.
+**Measured, not assumed.** A pack that holds 640 MB in the frame, read back through the shell:
+
+|                          | Shell JS heap |
+| ------------------------ | ------------- |
+| Before opening the frame | 14 MB         |
+| Frame open, empty        | 14 MB         |
+| Frame holding 640 MB     | **14 MB**     |
+
+So the frame has its own JS heap: a runaway domain exhausts its own isolate and throws there rather
+than starving the shell. That is stronger than "an iframe is not a process" implies, and it means
+document isolation covers the failure that actually happens — a domain allocating without bound.
+
+What it still does not cover is **process-level** memory: the frame and the shell share a renderer
+process, so if total RSS exceeds what Android allows, the whole process goes. Whether that matters for
+Canvas is a measurement against Canvas, not an argument.
 
 ## Why `shared` is not wired yet
 
