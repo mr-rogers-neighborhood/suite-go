@@ -53,6 +53,8 @@ pnpm android:emulator --start suite-go-atd
 pnpm android:eval "…"     # evaluate an expression in the running WebView
 pnpm android:ax           # the accessibility tree Chromium hands to Android
 pnpm android:ax --assert  # fail on an unnamed interactive node
+pnpm pack:keygen          # a signing keypair, printed once, never stored
+pnpm pack:build -- --dir <dir> --id <id> --name <name> --version <v> --key <base64>
 pnpm planner:build        # prove Planner's renderer still builds as a web bundle
 ```
 

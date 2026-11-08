@@ -26,12 +26,15 @@
     "android:emulator": "node scripts/android.mjs emulator",
     "android:eval": "node scripts/webeval.mjs",
     "planner:build": "pnpm --filter @suite/go-app exec vite build --config planner.vite.config.ts",
-    "android:ax": "node scripts/ax.mjs"
+    "android:ax": "node scripts/ax.mjs",
+    "pack:keygen": "node scripts/keygen.mjs",
+    "pack:build": "node scripts/pack.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.5",
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
+    "fflate": "^0.8.3",
     "husky": "^9.1.7",
     "typescript": "~5.9.3",
     "vitest": "^5.0.5"

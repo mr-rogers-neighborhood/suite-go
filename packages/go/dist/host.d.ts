@@ -89,6 +89,58 @@ export interface ModuleRecents {
     remember(documentId: string, title: string): void;
     forget(documentId: string): void;
 }
+/**
+ * A filter for the platform's file picker.
+ *
+ * `extensions` are bare, lower-case and without a dot — the same rule the suite uses
+ * for a manifest's file extensions. A phone picker wants a MIME type in the end, and
+ * the implementation decides how to express the filter; this stays neutral so a full
+ * app can describe its own file without the container learning what it means.
+ */
+export interface FileFilter {
+    readonly name: string;
+    readonly extensions: readonly string[];
+}
+/** A file the person chose, already read into memory. */
+export interface PickedFile {
+    readonly name: string;
+    readonly mimeType: string;
+    readonly bytes: Uint8Array;
+}
+export type FileOutcome = {
+    readonly ok: true;
+    readonly name: string;
+} | {
+    readonly ok: false;
+    readonly reason: "cancelled" | "failed";
+    readonly message?: string;
+};
+export interface WriteFileInput {
+    readonly name: string;
+    readonly mimeType: string;
+    readonly bytes: Uint8Array;
+}
+/**
+ * Reading and writing files the person can reach.
+ *
+ * Three verbs, because a phone has three real capabilities and pretending otherwise
+ * produces buttons that fail: pick a file from the platform picker, write one into
+ * the app's own documents, and hand one to the share sheet so it can leave.
+ *
+ * There is deliberately no "reveal in file manager". A desktop has one; a phone does
+ * not, and the share sheet is the honest replacement.
+ */
+export interface FileService {
+    /** Opens the platform's picker. `null` means the person cancelled. */
+    pickOpen(filters: readonly FileFilter[]): Promise<PickedFile | null>;
+    /** Writes into the app's own documents directory and reports the URI. */
+    write(input: WriteFileInput): Promise<{
+        readonly ok: true;
+        readonly uri: string;
+    }>;
+    /** Offers the file to the platform share sheet. */
+    share(input: WriteFileInput): Promise<FileOutcome>;
+}
 export type ThemeDensity = "compact" | "cozy" | "comfortable";
 export type ColorScheme = "light" | "dark";
 /**
@@ -110,6 +162,7 @@ export interface ModuleHost {
     readonly storage: KeyValueStore;
     readonly navigation: ModuleNavigation;
     readonly recents: ModuleRecents;
+    readonly files: FileService;
     readonly theme: ThemeTokens;
 }
 //# sourceMappingURL=host.d.ts.map

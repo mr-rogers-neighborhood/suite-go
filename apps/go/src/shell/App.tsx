@@ -4,6 +4,7 @@ import { createModuleRegistry } from "@suite/go";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createDocumentStore } from "../host/documents.js";
 import { createFileService } from "../host/files.js";
+import { createPackStore } from "../host/packs.js";
 import { createPins, orderModules } from "../host/pins.js";
 import { createRecents, type RecentEntry } from "../host/recents.js";
 import { createKeyValueStore } from "../host/storage.js";
@@ -29,6 +30,28 @@ const shellStorage = createKeyValueStore("shell");
 const pins = createPins(shellStorage);
 const recents = createRecents(shellStorage);
 const files = createFileService();
+const packs = createPackStore();
+
+/**
+ * Dev handles, for `pnpm android:eval`.
+ *
+ * The install pipeline has no screen yet, and a pipeline nobody has run is a design. This
+ * exposes the store so it can be exercised on a device; it holds no secret, and it goes away
+ * with the install screen that replaces it.
+ */
+Object.assign(globalThis, {
+  __suiteGoDev: {
+    install: (base64: string) => {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1)
+        bytes[index] = binary.charCodeAt(index);
+      return packs.install(bytes);
+    },
+    list: () => packs.list(),
+    uninstall: (id: string) => packs.uninstall(id),
+  },
+});
 // Painted before the first render, so no frame flashes the browser's default palette.
 paintTheme();
 const theme = resolveTheme();

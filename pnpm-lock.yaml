@@ -175,6 +175,9 @@ importers:
       '@commitlint/config-conventional':
         specifier: ^21.2.4
         version: 21.2.4
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -211,6 +214,9 @@ importers:
       '@suite/ui':
         specifier: github:mr-rogers-neighborhood/suite-start#v0.15.0&path:/packages/ui
         version: https://codeload.github.com/mr-rogers-neighborhood/suite-start/tar.gz/2f6666d4a12742af7d95d80bccac12e6560b8460#path:/packages/ui(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
       loro-crdt:
         specifier: ^1.17.1
         version: 1.17.1
@@ -983,6 +989,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.3:
+    resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
 
   fs-extra@11.4.1:
     resolution: {integrity: sha512-KYAb4c9BJQI6QqGKthV68OHe0badztdXJWKo0WtBA9IuCFPTKvE5ZdUBglP833aMjhaSPNO4A5j/EkzZtGlKjA==}
@@ -2201,6 +2210,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.7):
     optionalDependencies:
       picomatch: 4.0.7
+
+  fflate@0.8.3: {}
 
   fs-extra@11.4.1:
     dependencies:

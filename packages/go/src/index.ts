@@ -43,6 +43,24 @@ export type {
   SuiteGoModuleRegistration,
 } from "./module.js";
 export { isSuiteGoModuleId } from "./module.js";
+export {
+  bytesToBase64,
+  canonicalManifestBytes,
+  type HostFit,
+  isSafePackPath,
+  PACK_FORMAT,
+  type PackFile,
+  type PackFileMismatch,
+  type PackIssue,
+  type PackManifest,
+  type PackManifestCore,
+  type PackParse,
+  packFitsHost,
+  parsePackManifest,
+  sha256Hex,
+  verifyPackFiles,
+  verifyPackSignature,
+} from "./pack.js";
 export type {
   CaptureResolution,
   DisposeEntry,

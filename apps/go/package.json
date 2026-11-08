@@ -18,6 +18,7 @@
     "@suite/go": "workspace:*",
     "@suite/theme": "github:mr-rogers-neighborhood/suite-start#v0.15.0&path:/packages/theme",
     "@suite/ui": "github:mr-rogers-neighborhood/suite-start#v0.15.0&path:/packages/ui",
+    "fflate": "^0.8.3",
     "loro-crdt": "^1.17.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
