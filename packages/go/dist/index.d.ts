@@ -9,8 +9,10 @@
  * there should never be one. If a future change needs to name a domain to work, the
  * change belongs in that domain's module instead.
  */
-export { type CaptureHandler, type CaptureIntent, type CaptureKind, type CaptureOutcome, } from "./capture.js";
-export { type ColorScheme, type CreateDocumentInput, type DocumentRecord, type DocumentStore, type DocumentSummary, type KeyValueStore, type ModuleHost, type ModuleNavigation, type SaveDocumentInput, type ThemeDensity, type ThemeTokens, } from "./host.js";
-export { isSuiteGoModuleId, type ModuleViewProps, type SuiteGoCapability, type SuiteGoModule, type SuiteGoModuleId, type SuiteGoModuleRegistration, } from "./module.js";
-export { type CaptureResolution, createModuleRegistry, type DisposeEntry, type DisposeReport, disposeAll, type ModuleRegistry, type RegistrationOutcome, type RegistrationRejection, } from "./registry.js";
+export type { CaptureHandler, CaptureIntent, CaptureKind, CaptureOutcome, } from "./capture.js";
+export type { ColorScheme, CreateDocumentInput, DocumentRecord, DocumentStore, DocumentSummary, KeyValueStore, ModuleHost, ModuleNavigation, ModuleRecents, SaveDocumentInput, ThemeDensity, ThemeTokens, } from "./host.js";
+export type { ModuleViewProps, SuiteGoCapability, SuiteGoModule, SuiteGoModuleId, SuiteGoModuleRegistration, } from "./module.js";
+export { isSuiteGoModuleId } from "./module.js";
+export type { CaptureResolution, DisposeEntry, DisposeReport, ModuleRegistry, RegistrationOutcome, RegistrationRejection, } from "./registry.js";
+export { createModuleRegistry, disposeAll } from "./registry.js";
 //# sourceMappingURL=index.d.ts.map

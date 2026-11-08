@@ -1,0 +1,15 @@
+{
+  "editor.formatOnSave": false,
+  "files.exclude": {
+    "**/apps/go/android/.gradle": true,
+    "**/apps/go/android/build": true,
+    "**/apps/go/android/app/build": true,
+    "**/apps/go/dist": true
+  },
+  "search.exclude": {
+    "**/apps/go/android/build": true,
+    "**/apps/go/dist": true,
+    "**/pnpm-lock.yaml": true
+  },
+  "typescript.tsdk": "node_modules/typescript/lib"
+}

@@ -77,6 +77,18 @@ export interface ModuleNavigation {
     /** Leave the module and return to home. */
     close(): void;
 }
+/**
+ * What a module tells the container about the documents it opens.
+ *
+ * The container keeps one recents list across domains, and it cannot build that
+ * list by reading documents — it has no idea what they contain. So the module says
+ * which document it opened and what to call it. `title` is supplied for the same
+ * reason it is supplied on save: a base64 snapshot has no human name in it.
+ */
+export interface ModuleRecents {
+    remember(documentId: string, title: string): void;
+    forget(documentId: string): void;
+}
 export type ThemeDensity = "compact" | "cozy" | "comfortable";
 export type ColorScheme = "light" | "dark";
 /**
@@ -97,6 +109,7 @@ export interface ModuleHost {
     readonly documents: DocumentStore;
     readonly storage: KeyValueStore;
     readonly navigation: ModuleNavigation;
+    readonly recents: ModuleRecents;
     readonly theme: ThemeTokens;
 }
 //# sourceMappingURL=host.d.ts.map

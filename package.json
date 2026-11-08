@@ -10,6 +10,7 @@
   "description": "Suite Go: one mobile container for the Suite domains. The host knows how to launch a module and hand it a document, and nothing else.",
   "scripts": {
     "build": "pnpm -r --workspace-concurrency=1 run build",
+    "build:verify": "pnpm -r run build && git diff --exit-code -- packages",
     "check": "biome check . && pnpm typecheck && vitest run",
     "check:full": "pnpm check",
     "format": "biome format --write .",
@@ -27,6 +28,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.5",
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
     "husky": "^9.1.7",
     "typescript": "~5.9.3",
     "vitest": "^5.0.5"

@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "biomejs.biome",
+    "vscjava.vscode-java-pack",
+    "redhat.vscode-xml",
+    "mathiasfrohlich.kotlin"
+  ]
+}

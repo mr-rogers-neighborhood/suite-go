@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "project": ["scripts/**/*.mjs"]
+    },
+    "packages/go": {
+      "project": ["src/**/*.ts"]
+    },
+    "apps/go": {
+      "project": ["src/**/*.{ts,tsx}", "*.config.ts", "*.config.mjs"]
+    }
+  },
+  "ignoreDependencies": ["vite-plugin-wasm", "@suite/go"]
+}

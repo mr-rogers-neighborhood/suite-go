@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# Conventional commits. The same rule the suite's other repositories use.
+pnpm exec commitlint --edit "$1"
