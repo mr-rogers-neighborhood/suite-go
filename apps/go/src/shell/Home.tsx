@@ -1,13 +1,16 @@
 import type { SuiteGoModule } from "@suite/go";
+import { EmptyState, IconButton, Launch, type LaunchRecent, PrivacyLine } from "@suite/ui";
 import { useState } from "react";
 import type { RecentEntry } from "../host/recents.js";
 
 /**
- * One surface, three bands: capture, domains, recents.
+ * The start screen.
  *
- * The capture bar doubles as the target picker — it names the module that will take
- * what you type, and that module is the same one a share would route to, resolved by
- * the registry rather than by this component.
+ * This is `Launch` from `@suite/ui` — the same component Canvas, Planner and Budget land on
+ * when no document is open — with the suite's own concerns in the slots it leaves: capture,
+ * the domain tiles, and recents that span them. A person who has used one app in the suite has
+ * already learned this screen, which is what WCAG 3.2.3 asks for and what a lookalike would
+ * only imitate.
  */
 export function Home({
   modules,
@@ -35,100 +38,115 @@ export function Home({
     setDraft("");
   };
 
-  return (
-    <main className="home">
-      <header className="home-header">
-        <h1 className="wordmark">Suite Go</h1>
-      </header>
+  const launchRecents: readonly LaunchRecent[] = recents.map((entry) => ({
+    id: entry.documentId,
+    name: entry.title,
+    detail: known.has(entry.moduleId)
+      ? `${moduleName(modules, entry.moduleId)} · ${relative(entry.openedAt)}`
+      : `${entry.moduleId} is not installed`,
+    action: null,
+  }));
 
-      <section className="capture" aria-label="Quick capture">
-        <div className="capture-bar">
+  return (
+    <main className="screen">
+      <Launch
+        title="Suite Go"
+        tagline="One place to start. Open a domain, or capture something without opening one."
+        hint={
+          target
+            ? `Capture goes to ${target.name} today.`
+            : "Capture turns on when a domain that accepts it is installed."
+        }
+        recents={launchRecents}
+        onOpenRecent={(documentId) => {
+          const entry = recents.find((candidate) => candidate.documentId === documentId);
+          if (entry && known.has(entry.moduleId)) onOpen(entry.moduleId);
+        }}
+        recentEmpty={
+          <EmptyState title="Nothing opened yet">
+            The last thing you opened shows up here, from any domain.
+          </EmptyState>
+        }
+        footer={<PrivacyLine sentence />}
+      >
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+        >
+          {/*
+            The name is on the field itself, not on an `sr-only` label beside it. The label
+            association did not survive into the WebView's accessibility tree: the field
+            arrived as an unnamed EditText, so TalkBack would announce "edit box" and nothing
+            else. `aria-label` is announced by every version regardless of that mapping.
+          */}
           <input
-            className="capture-input"
+            id="capture"
             type="text"
-            placeholder={target ? `Capture to ${target.name}…` : "Capture to…"}
             aria-label={target ? `Capture to ${target.name}` : "Capture to a domain"}
+            className="touch min-w-0 flex-1 rounded-xl border border-[var(--hairline)] bg-[var(--surface-sunk)] px-4 text-[16px] text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+            placeholder={target ? `Capture to ${target.name}…` : "Capture to…"}
             value={draft}
             disabled={!target}
             onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") submit();
-            }}
             enterKeyHint="done"
           />
-          <span className="capture-target" title="Which domain receives this">
-            {target ? target.name : "No domain"}
-          </span>
-        </div>
-        {target ? null : (
-          <p className="capture-hint">A domain will take this once one is installed.</p>
-        )}
-      </section>
+          <button
+            type="submit"
+            className="touch rounded-xl bg-[var(--accent)] px-4 text-[15px] font-medium text-[var(--on-accent)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none disabled:opacity-50"
+            disabled={!target || draft.trim().length === 0}
+          >
+            Capture
+          </button>
+        </form>
 
-      <section className="band" aria-label="Domains">
-        <h2 className="band-title">Domains</h2>
-        {modules.length === 0 ? (
-          <div className="empty">
-            <p className="empty-headline">Domains you add will live here.</p>
-            <p className="empty-detail">Pin the ones you use to keep them at the top.</p>
-          </div>
-        ) : (
-          <ul className="tiles">
-            {modules.map((module) => {
-              const isPinned = pinned.includes(module.id);
-              return (
-                <li key={module.id} className="tile">
-                  <button type="button" className="tile-open" onClick={() => onOpen(module.id)}>
-                    {module.name}
-                  </button>
-                  <button
-                    type="button"
-                    className="tile-pin"
-                    aria-pressed={isPinned}
-                    aria-label={isPinned ? `Unpin ${module.name}` : `Pin ${module.name}`}
-                    onClick={() => onTogglePin(module.id)}
+        <section aria-labelledby="domains-heading" className="flex flex-col gap-2">
+          <h2 id="domains-heading" className="text-[13px] font-medium text-[var(--ink-muted)]">
+            Domains
+          </h2>
+          {modules.length === 0 ? (
+            <EmptyState title="Domains you add will live here">
+              Pin the ones you use to keep them at the top.
+            </EmptyState>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {modules.map((module) => {
+                const isPinned = pinned.includes(module.id);
+                return (
+                  <li
+                    key={module.id}
+                    className="flex items-center gap-2 rounded-xl border border-[var(--hairline)] px-2"
                   >
-                    {isPinned ? "★" : "☆"}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section className="band" aria-label="Recents">
-        <h2 className="band-title">Recents</h2>
-        {recents.length === 0 ? (
-          <div className="empty">
-            <p className="empty-headline">Nothing opened yet.</p>
-            <p className="empty-detail">The last thing you opened shows up here.</p>
-          </div>
-        ) : (
-          <ul className="recents">
-            {recents.map((entry) => {
-              const available = known.has(entry.moduleId);
-              return (
-                <li key={entry.documentId} className="recent">
-                  <button
-                    type="button"
-                    className="recent-open"
-                    disabled={!available}
-                    onClick={() => onOpen(entry.moduleId)}
-                  >
-                    <span className="recent-title">{entry.title}</span>
-                    <span className="recent-meta">
-                      {available ? relative(entry.openedAt) : `${entry.moduleId} is not installed`}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                    <button
+                      type="button"
+                      className="touch min-w-0 flex-1 text-left text-[16px] font-medium focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+                      onClick={() => onOpen(module.id)}
+                    >
+                      {module.name}
+                    </button>
+                    <IconButton
+                      className="touch"
+                      label={isPinned ? `Unpin ${module.name}` : `Pin ${module.name}`}
+                      aria-pressed={isPinned}
+                      onClick={() => onTogglePin(module.id)}
+                    >
+                      <span aria-hidden="true">{isPinned ? "★" : "☆"}</span>
+                    </IconButton>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </Launch>
     </main>
   );
+}
+
+function moduleName(modules: readonly SuiteGoModule[], id: string): string {
+  return modules.find((module) => module.id === id)?.name ?? id;
 }
 
 /** Short and human; a phone does not have room for a timestamp and does not need one. */

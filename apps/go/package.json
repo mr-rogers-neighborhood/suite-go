@@ -16,6 +16,8 @@
     "@capacitor/filesystem": "^8.1.5",
     "@capacitor/share": "^8.0.3",
     "@suite/go": "workspace:*",
+    "@suite/theme": "github:mr-rogers-neighborhood/suite-start#v0.15.0&path:/packages/theme",
+    "@suite/ui": "github:mr-rogers-neighborhood/suite-start#v0.15.0&path:/packages/ui",
     "loro-crdt": "^1.17.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"

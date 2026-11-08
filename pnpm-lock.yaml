@@ -205,6 +205,12 @@ importers:
       '@suite/go':
         specifier: workspace:*
         version: link:../../packages/go
+      '@suite/theme':
+        specifier: github:mr-rogers-neighborhood/suite-start#v0.15.0&path:/packages/theme
+        version: https://codeload.github.com/mr-rogers-neighborhood/suite-start/tar.gz/2f6666d4a12742af7d95d80bccac12e6560b8460#path:/packages/theme
+      '@suite/ui':
+        specifier: github:mr-rogers-neighborhood/suite-start#v0.15.0&path:/packages/ui
+        version: https://codeload.github.com/mr-rogers-neighborhood/suite-start/tar.gz/2f6666d4a12742af7d95d80bccac12e6560b8460#path:/packages/ui(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       loro-crdt:
         specifier: ^1.17.1
         version: 1.17.1
@@ -617,6 +623,17 @@ packages:
   '@simple-libs/stream-utils@2.0.0':
     resolution: {integrity: sha512-fCTuZK4QBa+39Oz9l4OGfJfz+GpwCp3AqO7Zch3to99xHPgstVsRFpeQ8LNd2o1Gv8raL2mCFwiaHh7bFSp5DQ==}
     engines: {node: '>=22'}
+
+  '@suite/theme@https://codeload.github.com/mr-rogers-neighborhood/suite-start/tar.gz/2f6666d4a12742af7d95d80bccac12e6560b8460#path:/packages/theme':
+    resolution: {gitHosted: true, integrity: sha512-75xukf38ED1f7LbPJLOTPbn/4fVymdTzsgHCvw5lOLrHM46nH3RueBMfUdRGeTkx6LeBtaM5DQhuja061aa9sA==, path: /packages/theme, tarball: https://codeload.github.com/mr-rogers-neighborhood/suite-start/tar.gz/2f6666d4a12742af7d95d80bccac12e6560b8460}
+    version: 0.15.0
+
+  '@suite/ui@https://codeload.github.com/mr-rogers-neighborhood/suite-start/tar.gz/2f6666d4a12742af7d95d80bccac12e6560b8460#path:/packages/ui':
+    resolution: {gitHosted: true, integrity: sha512-75xukf38ED1f7LbPJLOTPbn/4fVymdTzsgHCvw5lOLrHM46nH3RueBMfUdRGeTkx6LeBtaM5DQhuja061aa9sA==, path: /packages/ui, tarball: https://codeload.github.com/mr-rogers-neighborhood/suite-start/tar.gz/2f6666d4a12742af7d95d80bccac12e6560b8460}
+    version: 0.14.0
+    peerDependencies:
+      react: '>=19'
+      react-dom: '>=19'
 
   '@tailwindcss/node@4.3.5':
     resolution: {integrity: sha512-yT53FzV4ke0cr/BguDxhWMpm5MJu1O2muzk+tKw6lKHjODAsYArBbWwFbJiaksfzFv1tpkO9QHGzmfs1hJT66g==}
@@ -1912,6 +1929,13 @@ snapshots:
       '@simple-libs/stream-utils': 2.0.0
 
   '@simple-libs/stream-utils@2.0.0': {}
+
+  '@suite/theme@https://codeload.github.com/mr-rogers-neighborhood/suite-start/tar.gz/2f6666d4a12742af7d95d80bccac12e6560b8460#path:/packages/theme': {}
+
+  '@suite/ui@https://codeload.github.com/mr-rogers-neighborhood/suite-start/tar.gz/2f6666d4a12742af7d95d80bccac12e6560b8460#path:/packages/ui(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+    dependencies:
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
 
   '@tailwindcss/node@4.3.5':
     dependencies:

@@ -46,6 +46,7 @@ pnpm android:install     # build, install and launch on the attached phone
 pnpm android:watch       # the same, again, on every save
 pnpm android:emulator --start suite-go-atd
 pnpm android:eval "document.body.innerText"   # ask the running app a question
+pnpm android:ax --assert                      # fail on an unnamed control
 pnpm check               # lint, types, tests
 ```
 

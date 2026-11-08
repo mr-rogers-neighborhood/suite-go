@@ -1,42 +1,63 @@
 import type { ColorScheme, ThemeDensity, ThemeTokens } from "@suite/go";
+import {
+  applyTheme,
+  colorSchemeFor,
+  cssVariables,
+  defaultTheme,
+  type ThemeMode,
+} from "@suite/theme";
 
 /**
- * The seam the theme system plugs into.
+ * The palette belongs to `@suite/theme`, not to this app.
  *
- * The values here are resolved once, at the root, and handed to every module. A
- * module reads CSS variables from the shell's stylesheet instead of naming a colour,
- * so a palette change is one file and no module moves.
- *
- * **This is the swap point.** When the suite's shared theme tokens land, this
- * function returns them and the shell's placeholder custom properties in
- * `styles.css` are replaced by the token source. Nothing else changes: no module
- * imports a colour, and `ThemeTokens` already carries the shape they arrive in.
+ * Everything here is wiring: resolve which mode the phone is in, hand the theme and the
+ * mode to the suite's `applyTheme`, and keep our own density as an attribute. No colour is
+ * named in this file, and none should ever be.
  */
 
 export const DENSITIES: readonly ThemeDensity[] = ["compact", "cozy", "comfortable"];
 
 export const DEFAULT_DENSITY: ThemeDensity = "comfortable";
 
-function currentScheme(): ColorScheme {
+const DENSITY_KEY = "suite-go:shell:density";
+
+function preferredMode(): ThemeMode {
   return globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-export function resolveTheme(density: ThemeDensity = DEFAULT_DENSITY): ThemeTokens {
+/** What the theme resolves to right now, for anything that needs the values rather than the paint. */
+export function resolveTheme(density: ThemeDensity = readDensity()): ThemeTokens {
+  const mode = preferredMode();
   return {
-    scheme: currentScheme(),
+    scheme: colorSchemeFor(mode) as ColorScheme,
     density,
-    // Empty on purpose: the shell's custom properties are the token source for now,
-    // and inventing a second set of values here would be two places to keep in sync.
-    cssVariables: {},
+    cssVariables: cssVariables(defaultTheme(), mode),
   };
 }
 
-/**
- * Apply a density without a stylesheet reload: the scale is a single multiplier the
- * CSS reads, so changing it is one variable write.
- */
+/** Paint the suite's theme onto the document. Idempotent; call it on every mode change. */
+export function paintTheme(): ThemeTokens {
+  const mode = preferredMode();
+  applyTheme(defaultTheme(), mode, document.documentElement);
+  applyDensity(readDensity());
+  return resolveTheme(readDensity());
+}
+
+/** Repaint when the phone switches between light and dark. Returns the unsubscribe. */
+export function watchColorScheme(onChange: (tokens: ThemeTokens) => void): () => void {
+  const query = globalThis.matchMedia?.("(prefers-color-scheme: dark)");
+  if (!query) return () => undefined;
+  const listener = () => onChange(paintTheme());
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
+
+export function readDensity(): ThemeDensity {
+  const stored = localStorage.getItem(DENSITY_KEY);
+  return DENSITIES.includes(stored as ThemeDensity) ? (stored as ThemeDensity) : DEFAULT_DENSITY;
+}
+
 export function applyDensity(density: ThemeDensity): void {
-  const scale = density === "compact" ? 0.875 : density === "cozy" ? 0.9375 : 1;
-  document.documentElement.style.setProperty("--density-scale", String(scale));
   document.documentElement.dataset.density = density;
+  localStorage.setItem(DENSITY_KEY, density);
 }

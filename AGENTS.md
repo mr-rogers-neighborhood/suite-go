@@ -51,6 +51,8 @@ pnpm android:watch        # the same, again, on every save
 pnpm android:devices      # what adb can see
 pnpm android:emulator --start suite-go-atd
 pnpm android:eval "…"     # evaluate an expression in the running WebView
+pnpm android:ax           # the accessibility tree Chromium hands to Android
+pnpm android:ax --assert  # fail on an unnamed interactive node
 pnpm planner:build        # prove Planner's renderer still builds as a web bundle
 ```
 
@@ -68,6 +70,11 @@ pnpm check
 
 A device is verified with `pnpm android:eval`, not by reading a screenshot: WebView content is invisible
 to `uiautomator`, and screenshot diffing guesses. Ask the app what it holds.
+
+Accessibility is verified with `pnpm android:ax`, which reads Chromium's own tree. Do **not** judge a
+WebView by `uiautomator dump`: it drops the accessible name of a text field, and it reports an empty tree
+when no accessibility service is bound — both of which read as defects that are not there. See
+[docs/reference/accessibility-mobile.md](docs/reference/accessibility-mobile.md).
 
 ## Conventions
 

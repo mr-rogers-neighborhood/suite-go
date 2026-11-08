@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import wasm from "vite-plugin-wasm";
@@ -7,7 +8,7 @@ export default defineConfig({
   // Loro is Rust compiled to WebAssembly. The plugin resolves its `.wasm` import as
   // a module; without it the bundle keeps an import the WebView cannot resolve from
   // `file://`, and the failure appears only on a device.
-  plugins: [react(), wasm()],
+  plugins: [react(), tailwindcss(), wasm()],
   resolve: {
     alias: {
       // The contract is compiled from source here, not from `dist`. A stale build

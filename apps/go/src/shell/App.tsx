@@ -7,7 +7,7 @@ import { createFileService } from "../host/files.js";
 import { createPins, orderModules } from "../host/pins.js";
 import { createRecents, type RecentEntry } from "../host/recents.js";
 import { createKeyValueStore } from "../host/storage.js";
-import { applyDensity, resolveTheme } from "../host/theme.js";
+import { paintTheme, resolveTheme, watchColorScheme } from "../host/theme.js";
 import { canvasModule } from "../modules/canvas/index.js";
 import { scratchModule } from "../modules/scratch/index.js";
 import { Home } from "./Home.js";
@@ -29,6 +29,8 @@ const shellStorage = createKeyValueStore("shell");
 const pins = createPins(shellStorage);
 const recents = createRecents(shellStorage);
 const files = createFileService();
+// Painted before the first render, so no frame flashes the browser's default palette.
+paintTheme();
 const theme = resolveTheme();
 
 type Route =
@@ -41,9 +43,7 @@ export function App() {
   const [recent, setRecent] = useState<readonly RecentEntry[]>([]);
   const pendingCleanup = useRef<(() => Promise<void>) | null>(null);
 
-  useEffect(() => {
-    applyDensity(theme.density);
-  }, []);
+  useEffect(() => watchColorScheme(() => undefined), []);
 
   const refreshRecents = useCallback(async () => {
     setRecent(await recents.list());
