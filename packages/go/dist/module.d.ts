@@ -42,6 +42,17 @@ export interface SuiteGoModuleRegistration {
      * that boots without its bridge would fail in a way that looks like a domain bug.
      */
     readonly install?: (host: ModuleHost) => InstallCleanup;
+    /**
+     * Persist whatever is pending, without releasing anything.
+     *
+     * The container calls this when the app leaves the foreground, which is the boundary a phone
+     * gives no warning about (ADR-0005). `dispose` also flushes, but reaching for it here would
+     * throw away a scroll position the person expects to return to.
+     *
+     * Optional, and absent means "nothing pending" — a module that writes through on every edit
+     * has nothing to do.
+     */
+    readonly flush?: () => void | Promise<void>;
     /** Called when the person leaves. Must release listeners, timers and document handles. */
     dispose(): void | Promise<void>;
 }

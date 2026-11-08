@@ -44,16 +44,36 @@ const SHA256_HEX = /^[0-9a-f]{64}$/u;
 /**
  * Which document a pack renders in.
  *
- * `shared` runs inside the shell's document and takes React from the shell's import map, so
- * its CSS and its heap are the shell's. `isolated` gets its own document, its own CSS scope
- * and its own React — which is what a heavy domain needs, and what stops one domain's
- * Tailwind preflight from restyling the launcher.
+ * `isolated` is the only mode: its own document, its own CSS scope, its own React (ADR-0003).
+ * `shared` would have rendered inside the shell's document against the shell's React, and it is
+ * refused rather than honoured — the import-map route it depended on is not supported by the
+ * toolchain, and a mode that half-works is worse than one that says so.
  *
- * What `isolated` does **not** buy is a separate process: an iframe is a new document and a
- * new JS realm in the same renderer. A runaway allocation still takes the shell with it. Only
- * a second native WebView changes that, which is why the measurement exists.
+ * What `isolated` does **not** buy is a separate process, or a security boundary (ADR-0002): an
+ * iframe is a new document and a new JS realm in the same renderer, same origin. The JS heap is
+ * separate — measured — so a runaway allocation exhausts its own isolate. The shell's DOM is not
+ * protected; capabilities are what protect the data.
  */
 export type PackIsolation = "shared" | "isolated";
+
+/**
+ * What a pack may ask the host for.
+ *
+ * Coarse on purpose — four words a person can reason about without reading code. Deny by default:
+ * a manifest with no capabilities renders and does nothing else, which is the correct starting
+ * point for something that arrived over the network.
+ *
+ * `network` is declared but **advisory**: the host cannot stop a pack from calling `fetch` while
+ * the pack shares the shell's origin (ADR-0002). It becomes enforceable with the origin boundary,
+ * and saying so here is better than implying a check that does not exist.
+ */
+export const PACK_CAPABILITIES = ["documents", "storage", "files", "recents", "network"] as const;
+
+export type PackCapability = (typeof PACK_CAPABILITIES)[number];
+
+export function isPackCapability(value: unknown): value is PackCapability {
+  return typeof value === "string" && (PACK_CAPABILITIES as readonly string[]).includes(value);
+}
 
 /** One file inside a pack. `path` is relative to the pack root and slash-separated. */
 export interface PackFile {
@@ -77,6 +97,8 @@ export interface PackManifestCore {
   readonly independent: boolean;
   /** Which document the pack renders in. Absent means `shared`. */
   readonly isolation: PackIsolation;
+  /** What it may ask the host for. Empty means it may render and nothing else. */
+  readonly capabilities: readonly PackCapability[];
   readonly files: readonly PackFile[];
 }
 
@@ -148,9 +170,16 @@ export function parsePackManifest(value: unknown): PackParse {
 
   if (typeof raw.independent !== "boolean") fail("independent", "true or false");
 
-  const isolation: PackIsolation = raw.isolation === "isolated" ? "isolated" : "shared";
+  // Defaults to `isolated`, and an explicit `shared` is refused with a reason (ADR-0003).
+  const isolation: PackIsolation = raw.isolation === "shared" ? "shared" : "isolated";
   if (raw.isolation !== undefined && raw.isolation !== "shared" && raw.isolation !== "isolated") {
     fail("isolation", 'either "shared" or "isolated"');
+  }
+  if (raw.isolation === "shared") {
+    fail(
+      "isolation",
+      'the "shared" hosting mode was withdrawn: rebuild the pack for its own document, or remove the field and it defaults to "isolated"',
+    );
   }
 
   const files: PackFile[] = [];
@@ -193,6 +222,27 @@ export function parsePackManifest(value: unknown): PackParse {
   const signature = typeof raw.signature === "string" ? raw.signature : "";
   if (signature.length === 0) fail("signature", "base64 Ed25519 signature");
 
+  const capabilities: PackCapability[] = [];
+  if (raw.capabilities !== undefined) {
+    if (!Array.isArray(raw.capabilities)) {
+      fail("capabilities", "an array of capability names");
+    } else {
+      const seen = new Set<string>();
+      raw.capabilities.forEach((candidate, index) => {
+        if (!isPackCapability(candidate)) {
+          fail(`capabilities.${index}`, `one of ${PACK_CAPABILITIES.join(", ")}`);
+          return;
+        }
+        if (seen.has(candidate)) {
+          fail(`capabilities.${index}`, `duplicate ${candidate}`);
+          return;
+        }
+        seen.add(candidate);
+        capabilities.push(candidate);
+      });
+    }
+  }
+
   // The entry has to match the mode: an isolated pack owns a page, a shared pack is a module
   // imported into one. Getting this wrong produces a blank frame or an import of an HTML
   // file, neither of which names the mistake.
@@ -219,6 +269,7 @@ export function parsePackManifest(value: unknown): PackParse {
         : { minimumHostVersion: raw.minimumHostVersion as number }),
       independent: raw.independent as boolean,
       isolation,
+      capabilities,
       files,
       signature,
     },
@@ -243,6 +294,7 @@ export function canonicalManifestBytes(manifest: PackManifestCore): Uint8Array {
     minimumHostVersion: manifest.minimumHostVersion ?? null,
     independent: manifest.independent,
     isolation: manifest.isolation,
+    capabilities: manifest.capabilities,
     files: manifest.files.map((file) => ({
       path: file.path,
       sha256: file.sha256,
@@ -336,6 +388,16 @@ export async function verifyPackFiles(
 export type HostFit =
   | { readonly ok: true }
   | { readonly ok: false; readonly reason: "contract" | "host"; readonly message: string };
+
+/**
+ * May this pack make this request?
+ *
+ * `ready` and `theme` are always allowed: a pack that cannot ask what it is or how it looks
+ * cannot render at all, and neither reveals anything the pack does not already have.
+ */
+export function packAllows(manifest: PackManifest, capability: PackCapability): boolean {
+  return manifest.capabilities.includes(capability);
+}
 
 export function packFitsHost(
   manifest: PackManifest,

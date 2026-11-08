@@ -1,4 +1,12 @@
-import type { DocumentSummary, FrameAnswer, FrameRequest, FrameTheme, ModuleHost } from "@suite/go";
+import type {
+  DocumentSummary,
+  FrameAnswer,
+  FrameRequest,
+  FrameTheme,
+  ModuleHost,
+  PackCapability,
+  PackManifest,
+} from "@suite/go";
 import { FRAME_PROTOCOL, isFrameEnvelope } from "@suite/go";
 
 /**
@@ -23,8 +31,30 @@ function fromBase64(value: string): Uint8Array {
   return bytes;
 }
 
+/**
+ * Which capability each request needs.
+ *
+ * `ready` and `theme` are absent on purpose: a pack that cannot ask what it is or how it should
+ * look cannot render, and neither answer reveals anything (ADR-0001).
+ */
+const REQUIRED_CAPABILITY: Readonly<Record<FrameRequest["method"], PackCapability | null>> = {
+  ready: null,
+  theme: null,
+  "documents.list": "documents",
+  "documents.create": "documents",
+  "documents.open": "documents",
+  "documents.save": "documents",
+  "documents.remove": "documents",
+  "storage.get": "storage",
+  "storage.set": "storage",
+  "storage.delete": "storage",
+  "recents.remember": "recents",
+};
+
 export interface FrameBridgeOptions {
   readonly host: ModuleHost;
+  /** The installed pack, for its declared capabilities and its name in a refusal. */
+  readonly manifest: () => PackManifest | null;
   readonly theme: () => FrameTheme;
   /** Where replies go. The iframe's `contentWindow`. */
   readonly target: () => Window | null;
@@ -56,6 +86,17 @@ async function answer(
   payload: string | undefined,
 ): Promise<FrameAnswer> {
   const { host } = options;
+
+  // Deny by default, checked per request rather than at install: the request is where the data
+  // would actually move, and a check at install protects nobody.
+  const manifest = options.manifest();
+  const required = REQUIRED_CAPABILITY[request.method];
+  if (required !== null && manifest !== null && !manifest.capabilities.includes(required)) {
+    return {
+      ok: false,
+      message: `${manifest.name} ${manifest.version} asked for "${required}" but does not declare it.`,
+    };
+  }
 
   try {
     switch (request.method) {

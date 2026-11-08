@@ -64,7 +64,7 @@ carries the one decision that blocks it.
 
 ## Verify
 
-The gate is local and runs on every push via `.husky/pre-push`, and Woodpecker runs the same script:
+The gate is local and runs on every push via `.husky/pre-push`. There is no CI service: a workflow that cannot start looks like a gate and is a comment.
 
 ```sh
 pnpm check

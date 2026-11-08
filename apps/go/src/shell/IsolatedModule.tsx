@@ -1,4 +1,4 @@
-import type { ModuleHost } from "@suite/go";
+import type { ModuleHost, PackManifest } from "@suite/go";
 import { useEffect, useRef } from "react";
 import { resolveTheme } from "../host/theme.js";
 import { serveFrame } from "./frameBridge.js";
@@ -20,16 +20,19 @@ export function IsolatedModule({
   host,
   entryUrl,
   title,
+  manifest,
 }: {
   readonly host: ModuleHost;
   readonly entryUrl: string;
   readonly title: string;
+  readonly manifest: PackManifest;
 }) {
   const frame = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
     const stop = serveFrame({
       host,
+      manifest: () => manifest,
       theme: () => {
         const tokens = resolveTheme();
         return { scheme: tokens.scheme, density: tokens.density, variables: tokens.cssVariables };
@@ -37,7 +40,7 @@ export function IsolatedModule({
       target: () => frame.current?.contentWindow ?? null,
     });
     return stop;
-  }, [host]);
+  }, [host, manifest]);
 
   return (
     <div className="module">

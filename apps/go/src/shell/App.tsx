@@ -43,7 +43,12 @@ function packAsModule(pack: InstalledPack): SuiteGoModule {
     register: () => ({
       view: ({ host }: ModuleViewProps) =>
         isolation === "isolated" ? (
-          <IsolatedModule host={host} entryUrl={pack.entryUrl} title={name} />
+          <IsolatedModule
+            host={host}
+            entryUrl={pack.entryUrl}
+            title={name}
+            manifest={pack.manifest}
+          />
         ) : (
           <div className="scratch">
             <p className="empty-headline">{name} needs the shared host.</p>
@@ -113,6 +118,7 @@ export function App() {
   const [pinned, setPinned] = useState<readonly string[]>([]);
   const [recent, setRecent] = useState<readonly RecentEntry[]>([]);
   const pendingCleanup = useRef<(() => Promise<void>) | null>(null);
+  const pendingFlush = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => watchColorScheme(() => undefined), []);
 
@@ -184,6 +190,7 @@ export function App() {
   const closeModule = useCallback(async () => {
     const cleanup = pendingCleanup.current;
     pendingCleanup.current = null;
+    pendingFlush.current = null;
     await cleanup?.();
     setRoute({ kind: "home" });
     await refresh();
@@ -215,6 +222,9 @@ export function App() {
         idleRelease.current = null;
       }
       if (!isActive && route.kind === "module") {
+        // Flush at the boundary rather than waiting for the release: a phone gives no warning
+        // before it kills a process, and the debounce leaves a window (ADR-0005).
+        void pendingFlush.current?.();
         idleRelease.current = setTimeout(() => {
           idleRelease.current = null;
           void closeModule();
@@ -299,6 +309,9 @@ export function App() {
           onClose={() => void closeModule()}
           onCleanupReady={(cleanup) => {
             pendingCleanup.current = cleanup;
+          }}
+          onFlushReady={(flush) => {
+            pendingFlush.current = flush;
           }}
         />
       );

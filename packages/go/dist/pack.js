@@ -38,6 +38,21 @@ export const PACK_FORMAT = "suite.pack";
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
 /**
+ * What a pack may ask the host for.
+ *
+ * Coarse on purpose — four words a person can reason about without reading code. Deny by default:
+ * a manifest with no capabilities renders and does nothing else, which is the correct starting
+ * point for something that arrived over the network.
+ *
+ * `network` is declared but **advisory**: the host cannot stop a pack from calling `fetch` while
+ * the pack shares the shell's origin (ADR-0002). It becomes enforceable with the origin boundary,
+ * and saying so here is better than implying a check that does not exist.
+ */
+export const PACK_CAPABILITIES = ["documents", "storage", "files", "recents", "network"];
+export function isPackCapability(value) {
+    return typeof value === "string" && PACK_CAPABILITIES.includes(value);
+}
+/**
  * A pack path must stay inside the pack.
  *
  * Rejecting `.` and `..` segments, absolute paths, backslashes and control characters is
@@ -88,9 +103,13 @@ export function parsePackManifest(value) {
     }
     if (typeof raw.independent !== "boolean")
         fail("independent", "true or false");
-    const isolation = raw.isolation === "isolated" ? "isolated" : "shared";
+    // Defaults to `isolated`, and an explicit `shared` is refused with a reason (ADR-0003).
+    const isolation = raw.isolation === "shared" ? "shared" : "isolated";
     if (raw.isolation !== undefined && raw.isolation !== "shared" && raw.isolation !== "isolated") {
         fail("isolation", 'either "shared" or "isolated"');
+    }
+    if (raw.isolation === "shared") {
+        fail("isolation", 'the "shared" hosting mode was withdrawn: rebuild the pack for its own document, or remove the field and it defaults to "isolated"');
     }
     const files = [];
     if (!Array.isArray(raw.files)) {
@@ -133,6 +152,27 @@ export function parsePackManifest(value) {
     const signature = typeof raw.signature === "string" ? raw.signature : "";
     if (signature.length === 0)
         fail("signature", "base64 Ed25519 signature");
+    const capabilities = [];
+    if (raw.capabilities !== undefined) {
+        if (!Array.isArray(raw.capabilities)) {
+            fail("capabilities", "an array of capability names");
+        }
+        else {
+            const seen = new Set();
+            raw.capabilities.forEach((candidate, index) => {
+                if (!isPackCapability(candidate)) {
+                    fail(`capabilities.${index}`, `one of ${PACK_CAPABILITIES.join(", ")}`);
+                    return;
+                }
+                if (seen.has(candidate)) {
+                    fail(`capabilities.${index}`, `duplicate ${candidate}`);
+                    return;
+                }
+                seen.add(candidate);
+                capabilities.push(candidate);
+            });
+        }
+    }
     // The entry has to match the mode: an isolated pack owns a page, a shared pack is a module
     // imported into one. Getting this wrong produces a blank frame or an import of an HTML
     // file, neither of which names the mistake.
@@ -158,6 +198,7 @@ export function parsePackManifest(value) {
                 : { minimumHostVersion: raw.minimumHostVersion }),
             independent: raw.independent,
             isolation,
+            capabilities,
             files,
             signature,
         },
@@ -181,6 +222,7 @@ export function canonicalManifestBytes(manifest) {
         minimumHostVersion: manifest.minimumHostVersion ?? null,
         independent: manifest.independent,
         isolation: manifest.isolation,
+        capabilities: manifest.capabilities,
         files: manifest.files.map((file) => ({
             path: file.path,
             sha256: file.sha256,
@@ -244,6 +286,15 @@ export async function verifyPackFiles(manifest, read) {
         }
     }
     return mismatches;
+}
+/**
+ * May this pack make this request?
+ *
+ * `ready` and `theme` are always allowed: a pack that cannot ask what it is or how it looks
+ * cannot render at all, and neither reveals anything the pack does not already have.
+ */
+export function packAllows(manifest, capability) {
+    return manifest.capabilities.includes(capability);
 }
 export function packFitsHost(manifest, host) {
     if (manifest.contractVersion > host.contractVersion) {

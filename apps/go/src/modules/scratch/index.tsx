@@ -30,6 +30,8 @@ function registerScratch(host: ModuleHost): SuiteGoModuleRegistration {
 
   return {
     view: () => <ScratchView controller={controller} />,
+    // The 300 ms debounce is right for typing and wrong at a lifecycle boundary.
+    flush: () => controller.flush(),
     capture: (intent) => controller.capture(intent.body),
     dispose: () => controller.dispose(),
   };

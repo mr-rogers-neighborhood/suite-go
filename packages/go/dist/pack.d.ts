@@ -2,16 +2,31 @@ export declare const PACK_FORMAT = "suite.pack";
 /**
  * Which document a pack renders in.
  *
- * `shared` runs inside the shell's document and takes React from the shell's import map, so
- * its CSS and its heap are the shell's. `isolated` gets its own document, its own CSS scope
- * and its own React — which is what a heavy domain needs, and what stops one domain's
- * Tailwind preflight from restyling the launcher.
+ * `isolated` is the only mode: its own document, its own CSS scope, its own React (ADR-0003).
+ * `shared` would have rendered inside the shell's document against the shell's React, and it is
+ * refused rather than honoured — the import-map route it depended on is not supported by the
+ * toolchain, and a mode that half-works is worse than one that says so.
  *
- * What `isolated` does **not** buy is a separate process: an iframe is a new document and a
- * new JS realm in the same renderer. A runaway allocation still takes the shell with it. Only
- * a second native WebView changes that, which is why the measurement exists.
+ * What `isolated` does **not** buy is a separate process, or a security boundary (ADR-0002): an
+ * iframe is a new document and a new JS realm in the same renderer, same origin. The JS heap is
+ * separate — measured — so a runaway allocation exhausts its own isolate. The shell's DOM is not
+ * protected; capabilities are what protect the data.
  */
 export type PackIsolation = "shared" | "isolated";
+/**
+ * What a pack may ask the host for.
+ *
+ * Coarse on purpose — four words a person can reason about without reading code. Deny by default:
+ * a manifest with no capabilities renders and does nothing else, which is the correct starting
+ * point for something that arrived over the network.
+ *
+ * `network` is declared but **advisory**: the host cannot stop a pack from calling `fetch` while
+ * the pack shares the shell's origin (ADR-0002). It becomes enforceable with the origin boundary,
+ * and saying so here is better than implying a check that does not exist.
+ */
+export declare const PACK_CAPABILITIES: readonly ["documents", "storage", "files", "recents", "network"];
+export type PackCapability = (typeof PACK_CAPABILITIES)[number];
+export declare function isPackCapability(value: unknown): value is PackCapability;
 /** One file inside a pack. `path` is relative to the pack root and slash-separated. */
 export interface PackFile {
     readonly path: string;
@@ -33,6 +48,8 @@ export interface PackManifestCore {
     readonly independent: boolean;
     /** Which document the pack renders in. Absent means `shared`. */
     readonly isolation: PackIsolation;
+    /** What it may ask the host for. Empty means it may render and nothing else. */
+    readonly capabilities: readonly PackCapability[];
     readonly files: readonly PackFile[];
 }
 export interface PackManifest extends PackManifestCore {
@@ -101,6 +118,13 @@ export type HostFit = {
     readonly reason: "contract" | "host";
     readonly message: string;
 };
+/**
+ * May this pack make this request?
+ *
+ * `ready` and `theme` are always allowed: a pack that cannot ask what it is or how it looks
+ * cannot render at all, and neither reveals anything the pack does not already have.
+ */
+export declare function packAllows(manifest: PackManifest, capability: PackCapability): boolean;
 export declare function packFitsHost(manifest: PackManifest, host: {
     readonly contractVersion: number;
     readonly hostVersion: number;

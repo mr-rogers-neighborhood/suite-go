@@ -16,6 +16,7 @@ export function MountedModule({
   intent,
   onClose,
   onCleanupReady,
+  onFlushReady,
 }: {
   readonly module: SuiteGoModule;
   readonly host: ModuleHost;
@@ -23,6 +24,8 @@ export function MountedModule({
   readonly onClose: () => void;
   /** Lets the container await this module's teardown before mounting the next one. */
   readonly onCleanupReady?: (cleanup: () => Promise<void>) => void;
+  /** Lets the container flush this module when the app leaves the foreground. */
+  readonly onFlushReady?: (flush: () => Promise<void>) => void;
 }) {
   const [outcome] = useState(() => mountModule(module, host));
   const [ready, setReady] = useState(false);
@@ -31,13 +34,19 @@ export function MountedModule({
 
   useEffect(() => {
     if (cleanup.current) onCleanupReady?.(cleanup.current);
+    if (outcome.ok) {
+      const registration = outcome.registration;
+      onFlushReady?.(async () => {
+        await registration.flush?.();
+      });
+    }
     setReady(true);
     return () => {
       if (disposed.current) return;
       disposed.current = true;
       void cleanup.current?.();
     };
-  }, [onCleanupReady]);
+  }, [onCleanupReady, onFlushReady, outcome]);
 
   useEffect(() => {
     if (!ready || !outcome.ok || !intent) return;

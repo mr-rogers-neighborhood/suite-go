@@ -36,11 +36,21 @@ const contractVersion = Number(arg("contract") ?? 1);
 const minimumHostVersion = arg("min-host");
 const independent = args.includes("--independent");
 /**
- * `--isolated` declares that this pack renders in its own document, which means its entry is an
- * HTML page. Without it the pack is `shared` and its entry must be a module — the contract
- * refuses the mismatch rather than producing a blank frame.
+ * Always `isolated`: ADR-0003 withdrew the shared hosting mode, and the contract refuses it. The
+ * `--isolated` flag is still accepted so older build invocations do not fail confusingly.
  */
-const isolation = args.includes("--isolated") ? "isolated" : "shared";
+const isolation = "isolated";
+
+/**
+ * Capabilities the pack declares (ADR-0001). Empty by default, because deny-by-default is the
+ * whole point: a pack that forgot to ask for anything renders and does nothing else.
+ *
+ *   --capabilities documents,storage
+ */
+const capabilities = (arg("capabilities") ?? "")
+  .split(",")
+  .map((entry) => entry.trim())
+  .filter(Boolean);
 
 if (!dir || !id || !name || !version) {
   console.error(
@@ -80,6 +90,7 @@ const core = {
   ...(minimumHostVersion === undefined ? {} : { minimumHostVersion: Number(minimumHostVersion) }),
   independent,
   isolation,
+  capabilities,
   files: manifestFiles,
 };
 

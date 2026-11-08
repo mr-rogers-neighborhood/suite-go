@@ -16,7 +16,7 @@ export { createFrameHost, type FrameHostOptions } from "./frameClient.js";
 export type { ColorScheme, CreateDocumentInput, DocumentRecord, DocumentStore, DocumentSummary, FileFilter, FileOutcome, FileService, KeyValueStore, ModuleHost, ModuleNavigation, ModuleRecents, PickedFile, SaveDocumentInput, ThemeDensity, ThemeTokens, WriteFileInput, } from "./host.js";
 export type { InstallCleanup, ModuleViewProps, SuiteGoCapability, SuiteGoModule, SuiteGoModuleId, SuiteGoModuleRegistration, } from "./module.js";
 export { isSuiteGoModuleId } from "./module.js";
-export { bytesToBase64, canonicalManifestBytes, type HostFit, isSafePackPath, PACK_FORMAT, type PackFile, type PackFileMismatch, type PackIssue, type PackManifest, type PackManifestCore, type PackParse, packFitsHost, parsePackManifest, sha256Hex, verifyPackFiles, verifyPackSignature, } from "./pack.js";
+export { bytesToBase64, canonicalManifestBytes, type HostFit, isPackCapability, isSafePackPath, PACK_CAPABILITIES, PACK_FORMAT, type PackCapability, type PackFile, type PackFileMismatch, type PackIssue, type PackManifest, type PackManifestCore, type PackParse, packAllows, packFitsHost, parsePackManifest, sha256Hex, verifyPackFiles, verifyPackSignature, } from "./pack.js";
 export type { CaptureResolution, DisposeEntry, DisposeReport, ModuleRegistry, RegistrationOutcome, RegistrationRejection, } from "./registry.js";
 export { createModuleRegistry, disposeAll } from "./registry.js";
 //# sourceMappingURL=index.d.ts.map

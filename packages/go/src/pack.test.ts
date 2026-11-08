@@ -4,6 +4,7 @@ import {
   canonicalManifestBytes,
   isSafePackPath,
   type PackManifest,
+  packAllows,
   packFitsHost,
   parsePackManifest,
   sha256Hex,
@@ -27,17 +28,18 @@ async function sign(manifest: Omit<PackManifest, "signature">): Promise<string> 
 }
 
 async function makeManifest(overrides: Partial<PackManifest> = {}): Promise<PackManifest> {
-  const body = encoder.encode("export const x = 1;\n");
+  const body = encoder.encode("<!doctype html><title>pack</title>\n");
   const core = {
     format: "suite.pack" as const,
     id: "probe",
     name: "Probe",
     version: "1.0.0",
-    entry: "index.js",
+    entry: "index.html",
     contractVersion: 1,
     independent: false,
-    isolation: "shared" as const,
-    files: [{ path: "index.js", sha256: await sha256Hex(body), bytes: body.byteLength }],
+    isolation: "isolated" as const,
+    capabilities: [] as const,
+    files: [{ path: "index.html", sha256: await sha256Hex(body), bytes: body.byteLength }],
     ...overrides,
   };
   const signature = await sign(core);
@@ -91,7 +93,7 @@ describe("parsePackManifest", () => {
   });
 
   it("refuses a duplicate file path", async () => {
-    const file = { path: "index.js", sha256: "a".repeat(64), bytes: 1 };
+    const file = { path: "index.html", sha256: "a".repeat(64), bytes: 1 };
     const parsed = parsePackManifest(await makeManifest({ files: [file, file] }));
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
@@ -106,16 +108,31 @@ describe("parsePackManifest", () => {
 });
 
 describe("isolation", () => {
-  it("defaults to shared when the manifest does not say", async () => {
+  it("defaults to isolated when the manifest does not say", async () => {
     const { isolation: _drop, ...without } = await makeManifest();
     const parsed = parsePackManifest(without);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.value.isolation).toBe("shared");
+    expect(parsed.value.isolation).toBe("isolated");
+  });
+
+  it("refuses the withdrawn shared mode and says what to do", async () => {
+    const parsed = parsePackManifest(await makeManifest({ isolation: "shared" }));
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    const issue = parsed.issues.find((candidate) => candidate.path === "isolation");
+    expect(issue?.message).toContain("withdrawn");
+    expect(issue?.message).toContain("own document");
   });
 
   it("refuses an isolated pack whose entry is not an HTML document", async () => {
-    const parsed = parsePackManifest(await makeManifest({ isolation: "isolated" }));
+    const js = encoder.encode("export const x = 1;\n");
+    const parsed = parsePackManifest(
+      await makeManifest({
+        entry: "index.js",
+        files: [{ path: "index.js", sha256: await sha256Hex(js), bytes: js.byteLength }],
+      }),
+    );
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
     expect(parsed.issues.some((issue) => issue.path === "entry")).toBe(true);
@@ -133,17 +150,6 @@ describe("isolation", () => {
     expect(parsed.ok).toBe(true);
   });
 
-  it("refuses a shared pack whose entry is a page", async () => {
-    const html = encoder.encode("<!doctype html>");
-    const parsed = parsePackManifest(
-      await makeManifest({
-        entry: "index.html",
-        files: [{ path: "index.html", sha256: await sha256Hex(html), bytes: html.byteLength }],
-      }),
-    );
-    expect(parsed.ok).toBe(false);
-  });
-
   it("refuses a mode it does not know", async () => {
     const parsed = parsePackManifest({
       ...(await makeManifest()),
@@ -154,8 +160,53 @@ describe("isolation", () => {
 
   it("is covered by the signature, so a mode cannot be swapped after signing", async () => {
     const manifest = await makeManifest();
-    const swapped: PackManifest = { ...manifest, isolation: "isolated" };
+    const swapped: PackManifest = { ...manifest, isolation: "shared" };
     expect(await verifyPackSignature(swapped, publicKeyBase64)).toBe(false);
+  });
+});
+
+describe("capabilities", () => {
+  it("grants nothing when the manifest does not say", async () => {
+    const { capabilities: _drop, ...without } = await makeManifest();
+    const parsed = parsePackManifest(without);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.capabilities).toEqual([]);
+    expect(packAllows(parsed.value, "documents")).toBe(false);
+  });
+
+  it("accepts known capabilities and grants exactly those", async () => {
+    const parsed = parsePackManifest(
+      await makeManifest({ capabilities: ["documents", "storage"] as const }),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(packAllows(parsed.value, "documents")).toBe(true);
+    expect(packAllows(parsed.value, "storage")).toBe(true);
+    expect(packAllows(parsed.value, "files")).toBe(false);
+  });
+
+  it("refuses a capability the host does not know", async () => {
+    const parsed = parsePackManifest(await makeManifest({ capabilities: ["root"] as never }));
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.issues.some((issue) => issue.path.startsWith("capabilities"))).toBe(true);
+  });
+
+  it("refuses a duplicate capability", async () => {
+    const parsed = parsePackManifest(
+      await makeManifest({ capabilities: ["documents", "documents"] as const }),
+    );
+    expect(parsed.ok).toBe(false);
+  });
+
+  it("is covered by the signature, so a capability cannot be added after signing", async () => {
+    const manifest = await makeManifest({ capabilities: ["documents"] as const });
+    const escalated: PackManifest = {
+      ...manifest,
+      capabilities: ["documents", "files"] as const,
+    };
+    expect(await verifyPackSignature(escalated, publicKeyBase64)).toBe(false);
   });
 });
 
@@ -164,6 +215,7 @@ describe("canonicalManifestBytes", () => {
     const manifest = await makeManifest();
     const reordered = {
       isolation: manifest.isolation,
+      capabilities: manifest.capabilities,
       independent: manifest.independent,
       files: manifest.files,
       contractVersion: manifest.contractVersion,
@@ -204,7 +256,7 @@ describe("verifyPackSignature", () => {
 });
 
 describe("verifyPackFiles", () => {
-  const body = encoder.encode("export const x = 1;\n");
+  const body = encoder.encode("<!doctype html><title>pack</title>\n");
 
   it("passes when the bytes match", async () => {
     const manifest = await makeManifest();
@@ -214,16 +266,16 @@ describe("verifyPackFiles", () => {
   it("reports a missing file", async () => {
     const manifest = await makeManifest();
     expect(await verifyPackFiles(manifest, async () => null)).toEqual([
-      { path: "index.js", reason: "missing" },
+      { path: "index.html", reason: "missing" },
     ]);
   });
 
   it("reports a size mismatch before hashing", async () => {
     const manifest = await makeManifest();
     // Deliberately a different length, so this exercises the size check rather than the hash.
-    const wrong = encoder.encode("export const x = 1;");
+    const wrong = encoder.encode("<!doctype html>");
     expect(await verifyPackFiles(manifest, async () => wrong)).toEqual([
-      { path: "index.js", reason: "size" },
+      { path: "index.html", reason: "size" },
     ]);
   });
 
@@ -233,7 +285,7 @@ describe("verifyPackFiles", () => {
     const swapped = new Uint8Array(body);
     swapped[0] = 0x61;
     expect(await verifyPackFiles(manifest, async () => swapped)).toEqual([
-      { path: "index.js", reason: "hash" },
+      { path: "index.html", reason: "hash" },
     ]);
   });
 });
