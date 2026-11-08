@@ -1,7 +1,7 @@
 import { App as NativeApp } from "@capacitor/app";
 import type { CaptureIntent, ModuleHost } from "@suite/go";
 import { createModuleRegistry } from "@suite/go";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createDocumentStore } from "../host/documents.js";
 import { createFileService } from "../host/files.js";
 import { createPins, orderModules } from "../host/pins.js";
@@ -39,6 +39,7 @@ export function App() {
   const [route, setRoute] = useState<Route>({ kind: "home" });
   const [pinned, setPinned] = useState<readonly string[]>([]);
   const [recent, setRecent] = useState<readonly RecentEntry[]>([]);
+  const pendingCleanup = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     applyDensity(theme.density);
@@ -57,26 +58,37 @@ export function App() {
     void refresh();
   }, [refresh]);
 
-  // Android's back button belongs to the container, not to a module: from a module
-  // it returns home, and from home it leaves the app.
-  useEffect(() => {
-    const subscription = NativeApp.addListener("backButton", () => {
-      if (route.kind === "module") setRoute({ kind: "home" });
-      else void NativeApp.exitApp();
-    });
-    return () => {
-      void subscription.then((handle) => handle.remove());
-    };
-  }, [route.kind]);
+  /**
+   * Leave a module only once its teardown has finished.
+   *
+   * A module's `dispose` flushes its last edit. Unmounting and routing home in the
+   * same tick would let the next module mount while that write was still in flight,
+   * so a heavy app could read a document that was halfway saved. Awaiting is the
+   * whole point of exposing the cleanup.
+   */
+  const closeModule = useCallback(async () => {
+    const cleanup = pendingCleanup.current;
+    pendingCleanup.current = null;
+    await cleanup?.();
+    setRoute({ kind: "home" });
+    await refresh();
+  }, [refresh]);
 
   const openModule = useCallback((moduleId: string, intent?: CaptureIntent) => {
     setRoute(intent ? { kind: "module", moduleId, intent } : { kind: "module", moduleId });
   }, []);
 
-  const closeModule = useCallback(() => {
-    setRoute({ kind: "home" });
-    void refresh();
-  }, [refresh]);
+  // Android's back button belongs to the container, not to a module: from a module
+  // it returns home, and from home it leaves the app.
+  useEffect(() => {
+    const subscription = NativeApp.addListener("backButton", () => {
+      if (route.kind === "module") void closeModule();
+      else void NativeApp.exitApp();
+    });
+    return () => {
+      void subscription.then((handle) => handle.remove());
+    };
+  }, [route.kind, closeModule]);
 
   const togglePin = useCallback((moduleId: string) => {
     setPinned((current) => {
@@ -101,7 +113,7 @@ export function App() {
           // not a v0 need, and accepting it would mean the container tracking state
           // nothing reads.
         },
-        close: closeModule,
+        close: () => void closeModule(),
       },
       files,
       recents: {
@@ -131,7 +143,10 @@ export function App() {
           module={module}
           host={host}
           {...(route.intent ? { intent: route.intent } : {})}
-          onClose={closeModule}
+          onClose={() => void closeModule()}
+          onCleanupReady={(cleanup) => {
+            pendingCleanup.current = cleanup;
+          }}
         />
       );
     }

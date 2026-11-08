@@ -15,11 +15,14 @@ export function MountedModule({
   host,
   intent,
   onClose,
+  onCleanupReady,
 }: {
   readonly module: SuiteGoModule;
   readonly host: ModuleHost;
   readonly intent?: CaptureIntent;
   readonly onClose: () => void;
+  /** Lets the container await this module's teardown before mounting the next one. */
+  readonly onCleanupReady?: (cleanup: () => Promise<void>) => void;
 }) {
   const [outcome] = useState(() => mountModule(module, host));
   const [ready, setReady] = useState(false);
@@ -27,13 +30,14 @@ export function MountedModule({
   const disposed = useRef(false);
 
   useEffect(() => {
+    if (cleanup.current) onCleanupReady?.(cleanup.current);
     setReady(true);
     return () => {
       if (disposed.current) return;
       disposed.current = true;
       void cleanup.current?.();
     };
-  }, []);
+  }, [onCleanupReady]);
 
   useEffect(() => {
     if (!ready || !outcome.ok || !intent) return;
