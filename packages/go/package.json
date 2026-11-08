@@ -1,0 +1,38 @@
+{
+  "name": "@suite/go",
+  "version": "0.0.0",
+  "description": "The Suite Go module contract: what a domain may claim, what the host hands it, and nothing about any domain. Pure types and pure functions; no I/O, no React at runtime.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "react": "^19.3.1",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mr-rogers-neighborhood/suite-go.git",
+    "directory": "packages/go"
+  },
+  "license": "MIT"
+}

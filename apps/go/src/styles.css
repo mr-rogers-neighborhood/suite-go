@@ -1,0 +1,350 @@
+/*
+ * The shell's own layout only.
+ *
+ * Colour, spacing and type are placeholders until the theme system lands: when it
+ * does, these values are replaced by the tokens `ModuleHost.theme` already exposes.
+ * Nothing here should be copied into a module — a module reads the host's variables.
+ */
+
+:root {
+  color-scheme: light dark;
+  --surface: #ffffff;
+  --surface-sunken: #f4f4f5;
+  --surface-raised: #ffffff;
+  --line: #e4e4e7;
+  --text: #18181b;
+  --text-muted: #71717a;
+  --accent: #2563eb;
+  --radius: 12px;
+  --gap: 16px;
+  /* Written by applyDensity(). One multiplier rather than a second set of numbers. */
+  --density-scale: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #09090b;
+    --surface-sunken: #18181b;
+    --surface-raised: #1c1c1f;
+    --line: #27272a;
+    --text: #fafafa;
+    --text-muted: #a1a1aa;
+    --accent: #60a5fa;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--surface);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* A phone should not rubber-band the whole document; a module scrolls inside. */
+  overscroll-behavior: none;
+}
+
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--gap) * 1.5);
+  min-height: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  /*
+   * Two sources, because neither is reliable alone on Android. Capacitor's
+   * SystemBars plugin injects --safe-area-inset-* but does so from a script that
+   * can run before `document.documentElement` exists, in which case it throws and
+   * does not retry until an inset changes. The WebView's own env() values are
+   * correct but resolve to 0 on some devices and display modes.
+   */
+  padding: calc(max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)) + 20px) 20px
+    calc(max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px)) + 28px);
+}
+
+.home-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.wordmark {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.capture {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.capture-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.capture-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.capture-input:focus {
+  outline: none;
+}
+
+.capture-input:disabled {
+  color: var(--text-muted);
+}
+
+.capture-input::placeholder {
+  color: var(--text-muted);
+}
+
+.capture-target {
+  flex: none;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.capture-hint {
+  margin: 0;
+  padding-left: 2px;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.band {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.band-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.empty {
+  padding: 20px 18px;
+  background: var(--surface-sunken);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.empty-headline {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 550;
+}
+
+.empty-detail {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tile {
+  display: flex;
+  align-items: center;
+  padding: 18px 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.tile-name {
+  font-size: 0.9375rem;
+  font-weight: 550;
+}
+
+/* --- tiles: open + pin ------------------------------------------------------ */
+
+.tile {
+  padding: calc(14px * var(--density-scale)) calc(12px * var(--density-scale));
+  gap: 4px;
+}
+
+.tile-open {
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: calc(0.9375rem * var(--density-scale));
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tile-pin {
+  flex: none;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tile-pin[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+/* --- recents --------------------------------------------------------------- */
+
+.recents {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recent-open {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(12px * var(--density-scale)) 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recent-open:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.recent-title {
+  overflow: hidden;
+  font-size: 0.9375rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-meta {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* --- a mounted module ------------------------------------------------------ */
+
+.module {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+}
+
+.module-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.module-back {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.module-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.module-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* --- scratch --------------------------------------------------------------- */
+
+.scratch {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+}
+
+.scratch-input {
+  flex: 1;
+  width: 100%;
+  min-height: 60vh;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  resize: none;
+}
+
+.scratch-input:focus {
+  outline: none;
+}

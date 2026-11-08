@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+# The gate that a CI service would have run.
+#
+# There is no hosted runner: like the rest of the suite, this repository runs its
+# own gate on the machine it lives on. `pnpm check` is the repository's definition
+# of healthy — lint, types and tests — and it is the same command Woodpecker runs.
+#
+# `git push --no-verify` skips this. Nothing else does.
+pnpm check

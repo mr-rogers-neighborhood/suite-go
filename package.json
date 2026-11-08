@@ -1,0 +1,39 @@
+{
+  "name": "suite-go",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.13.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "description": "Suite Go: one mobile container for the Suite domains. The host knows how to launch a module and hand it a document, and nothing else.",
+  "scripts": {
+    "build": "pnpm -r --workspace-concurrency=1 run build",
+    "check": "biome check . && pnpm typecheck && vitest run",
+    "check:full": "pnpm check",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck",
+    "verify": "pnpm check",
+    "prepare": "husky",
+    "doctor": "node scripts/preflight.mjs",
+    "android:devices": "node scripts/android.mjs devices",
+    "android:install": "node scripts/android.mjs install",
+    "android:watch": "node scripts/android.mjs watch",
+    "android:emulator": "node scripts/android.mjs emulator",
+    "android:eval": "node scripts/webeval.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.5",
+    "husky": "^9.1.7",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.5"
+  },
+  "author": {
+    "name": "Suite contributors",
+    "email": "maintainers@suite.run"
+  },
+  "license": "MIT"
+}
