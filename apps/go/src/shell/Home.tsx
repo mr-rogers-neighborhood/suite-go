@@ -19,6 +19,10 @@ export function Home({
   onOpen,
   onCapture,
   onTogglePin,
+  onInstall,
+  onRemove,
+  removable,
+  notice,
 }: {
   readonly modules: readonly SuiteGoModule[];
   readonly pinned: readonly string[];
@@ -26,6 +30,11 @@ export function Home({
   readonly onOpen: (moduleId: string) => void;
   readonly onCapture: (body: string) => void;
   readonly onTogglePin: (moduleId: string) => void;
+  readonly onInstall: () => void;
+  readonly onRemove: (moduleId: string) => void;
+  /** Installed packs, which can be removed — as distinct from the domains that ship in the app. */
+  readonly removable: ReadonlySet<string>;
+  readonly notice: string | null;
 }) {
   const [draft, setDraft] = useState("");
   const target = modules.find((module) => module.capabilities.includes("capture"));
@@ -49,6 +58,14 @@ export function Home({
 
   return (
     <main className="screen">
+      {notice === null ? null : (
+        <p
+          role="status"
+          className="mb-4 rounded-xl border border-[var(--hairline)] bg-[var(--surface-sunk)] px-4 py-3 text-[14px] text-[var(--ink)]"
+        >
+          {notice}
+        </p>
+      )}
       <Launch
         title="Suite Go"
         tagline="One place to start. Open a domain, or capture something without opening one."
@@ -62,6 +79,15 @@ export function Home({
           const entry = recents.find((candidate) => candidate.documentId === documentId);
           if (entry && known.has(entry.moduleId)) onOpen(entry.moduleId);
         }}
+        actions={
+          <button
+            type="button"
+            className="touch rounded-xl border border-[var(--hairline)] px-4 text-[15px] font-medium text-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none"
+            onClick={onInstall}
+          >
+            Install a domain…
+          </button>
+        }
         recentEmpty={
           <EmptyState title="Nothing opened yet">
             The last thing you opened shows up here, from any domain.
@@ -134,6 +160,15 @@ export function Home({
                     >
                       <span aria-hidden="true">{isPinned ? "★" : "☆"}</span>
                     </IconButton>
+                    {removable.has(module.id) ? (
+                      <IconButton
+                        className="touch"
+                        label={`Remove ${module.name}`}
+                        onClick={() => onRemove(module.id)}
+                      >
+                        <span aria-hidden="true">×</span>
+                      </IconButton>
+                    ) : null}
                   </li>
                 );
               })}

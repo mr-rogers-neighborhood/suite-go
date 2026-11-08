@@ -109,6 +109,7 @@ type Route =
 export function App() {
   const [route, setRoute] = useState<Route>({ kind: "home" });
   const [installed, setInstalled] = useState<readonly InstalledPack[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const [pinned, setPinned] = useState<readonly string[]>([]);
   const [recent, setRecent] = useState<readonly RecentEntry[]>([]);
   const pendingCleanup = useRef<(() => Promise<void>) | null>(null);
@@ -133,6 +134,40 @@ export function App() {
   useEffect(() => {
     reloadPacksFromDev = () => void reloadPacks();
   }, [reloadPacks]);
+
+  /**
+   * Install a pack from a file the person chooses.
+   *
+   * Every failure keeps its reason on screen rather than in a console: a pack that will not
+   * install has a specific cause — a signature, a contract version, a damaged file — and
+   * "something went wrong" would hide the one sentence that tells them what to do.
+   */
+  const installFromFile = useCallback(async () => {
+    setNotice(null);
+    try {
+      const picked = await files.pickOpen([{ name: "Suite pack", extensions: ["pack"] }]);
+      if (!picked) return;
+      const outcome = await packs.install(picked.bytes);
+      if (!outcome.ok) {
+        setNotice(outcome.message);
+        return;
+      }
+      await reloadPacks();
+      setNotice(`${outcome.pack.manifest.name} ${outcome.pack.manifest.version} installed.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String(error));
+    }
+  }, [reloadPacks]);
+
+  const removeDomain = useCallback(
+    async (moduleId: string) => {
+      await packs.uninstall(moduleId);
+      await reloadPacks();
+      setRoute({ kind: "home" });
+      setNotice("Removed. Its files are gone from this device.");
+    },
+    [reloadPacks],
+  );
 
   useEffect(() => {
     void refresh();
@@ -281,6 +316,10 @@ export function App() {
         openModule(captureTarget.id, { kind: "text", body, source: "shell.capture" });
       }}
       onTogglePin={togglePin}
+      onInstall={() => void installFromFile()}
+      onRemove={(moduleId) => void removeDomain(moduleId)}
+      removable={new Set(installed.map((pack) => pack.manifest.id))}
+      notice={notice}
     />
   );
 }
