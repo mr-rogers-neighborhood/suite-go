@@ -107,6 +107,28 @@ function readEnvelope(bytes: Uint8Array): ManifestEnvelope | null {
   }
 }
 
+/**
+ * Text through the filesystem plugin, base64 on both sides.
+ *
+ * `writeFile` rejects a plain string as invalid input — it wants base64 or a Blob — and a plain
+ * write would have "worked" only by accident on a platform that accepted it. Writing and reading
+ * the same way means the manifest on disk round-trips regardless.
+ */
+async function readTextFile(path: string): Promise<string> {
+  const file = await Filesystem.readFile({ path, directory: Directory.Data });
+  const base64 = typeof file.data === "string" ? file.data : "";
+  return new TextDecoder().decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)));
+}
+
+async function writeTextFile(path: string, text: string): Promise<void> {
+  await Filesystem.writeFile({
+    path,
+    data: bytesToBase64(new TextEncoder().encode(text)),
+    directory: Directory.Data,
+    recursive: true,
+  });
+}
+
 async function ensureDir(path: string): Promise<void> {
   await Filesystem.mkdir({ path, directory: Directory.Data, recursive: true }).catch(
     () => undefined,
@@ -114,6 +136,14 @@ async function ensureDir(path: string): Promise<void> {
 }
 
 export interface PackStore {
+  /**
+   * What is on disk.
+   *
+   * Read from storage rather than remembered, because a store that only knew what it installed
+   * this session would lose every pack on a restart — and "installed" has to survive the app
+   * being killed, which is the normal way it ends.
+   */
+  discover(): Promise<readonly InstalledPack[]>;
   list(): Promise<readonly InstalledPack[]>;
   install(bytes: Uint8Array): Promise<InstallOutcome>;
   uninstall(id: string): Promise<void>;
@@ -147,6 +177,54 @@ export function createPackStore(
   };
 
   return {
+    async discover() {
+      const found: InstalledPack[] = [];
+      let ids: readonly string[] = [];
+      try {
+        const listing = await Filesystem.readdir({ path: ROOT, directory: Directory.Data });
+        ids = listing.files.map((entry) => entry.name);
+      } catch {
+        return found;
+      }
+
+      for (const id of ids) {
+        let versions: readonly string[] = [];
+        try {
+          const listing = await Filesystem.readdir({
+            path: `${ROOT}/${id}`,
+            directory: Directory.Data,
+          });
+          versions = listing.files.map((entry) => entry.name);
+        } catch {
+          continue;
+        }
+
+        // The newest version that still verifies. A directory left behind by a half-finished
+        // install is skipped rather than offered as a module that will fail to open.
+        for (const version of [...versions].sort().reverse()) {
+          const dir = `${ROOT}/${id}/${version}`;
+          try {
+            const text = await readTextFile(`${dir}/manifest.json`);
+            const parsed = parsePackManifest(JSON.parse(text));
+            if (!parsed.ok) continue;
+            if (!(await verifyPackSignature(parsed.value, publicKey))) continue;
+
+            const baseDir = await absoluteDir(`${id}/${version}`);
+            found.push({
+              manifest: parsed.value,
+              entryUrl: packFileUrl(baseDir, parsed.value.entry),
+              installedAt: 0,
+              bytes: parsed.value.files.reduce((total, file) => total + file.bytes, 0),
+            });
+            installed.set(id, found[found.length - 1] as InstalledPack);
+            break;
+          } catch {}
+        }
+      }
+
+      return found;
+    },
+
     async list() {
       return [...installed.values()];
     },
@@ -199,6 +277,9 @@ export function createPackStore(
       try {
         const dir = `${ROOT}/${manifest.id}/${manifest.version}`;
         await ensureDir(dir);
+        // The manifest is written too, not just the payload. Discovery reads it to decide what
+        // is installed, and an install that left it behind would vanish on the next launch.
+        await writeTextFile(`${dir}/manifest.json`, JSON.stringify(manifest));
         for (const [path, content] of Object.entries(files)) {
           await Filesystem.writeFile({
             path: `${dir}/${path}`,

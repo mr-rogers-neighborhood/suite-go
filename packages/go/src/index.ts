@@ -16,6 +16,16 @@ export type {
   CaptureOutcome,
 } from "./capture.js";
 export type {
+  FrameAnswer,
+  FrameDocument,
+  FrameEnvelope,
+  FrameReply,
+  FrameRequest,
+  FrameTheme,
+} from "./frame.js";
+export { FRAME_PROTOCOL, isFrameEnvelope, isFrameReply } from "./frame.js";
+export { createFrameHost, type FrameHostOptions } from "./frameClient.js";
+export type {
   ColorScheme,
   CreateDocumentInput,
   DocumentRecord,

@@ -19,12 +19,41 @@
  * Everything here is pure and uses `globalThis.crypto`, which is the WebCrypto API in a
  * WebView and in Node 22+. That is why the same code verifies a pack in a test and on a phone.
  */
+import { hashes, verify as nobleVerify } from "@noble/ed25519";
+import { sha512 } from "@noble/hashes/sha2.js";
 import { isSuiteGoModuleId } from "./module.js";
+
+/**
+ * Ed25519 hashing, supplied explicitly rather than taken from WebCrypto.
+ *
+ * Verification used to call `crypto.subtle` and read as a clean design until it ran on a second
+ * device: a WebView without Ed25519 throws `Unrecognized name`, the old code caught that and
+ * answered `false`, and the app told the person their pack's "signature does not match" — a lie
+ * that blames the pack for the host's shortcoming.
+ *
+ * A pure implementation has no such gap. It is also the same family the suite's sync protocol
+ * already depends on, so this adds no new trust surface.
+ */
+hashes.sha512 = sha512;
 
 export const PACK_FORMAT = "suite.pack";
 
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
+
+/**
+ * Which document a pack renders in.
+ *
+ * `shared` runs inside the shell's document and takes React from the shell's import map, so
+ * its CSS and its heap are the shell's. `isolated` gets its own document, its own CSS scope
+ * and its own React — which is what a heavy domain needs, and what stops one domain's
+ * Tailwind preflight from restyling the launcher.
+ *
+ * What `isolated` does **not** buy is a separate process: an iframe is a new document and a
+ * new JS realm in the same renderer. A runaway allocation still takes the shell with it. Only
+ * a second native WebView changes that, which is why the measurement exists.
+ */
+export type PackIsolation = "shared" | "isolated";
 
 /** One file inside a pack. `path` is relative to the pack root and slash-separated. */
 export interface PackFile {
@@ -46,6 +75,8 @@ export interface PackManifestCore {
   readonly minimumHostVersion?: number;
   /** True when the pack opens on its own, without the hub. */
   readonly independent: boolean;
+  /** Which document the pack renders in. Absent means `shared`. */
+  readonly isolation: PackIsolation;
   readonly files: readonly PackFile[];
 }
 
@@ -117,6 +148,11 @@ export function parsePackManifest(value: unknown): PackParse {
 
   if (typeof raw.independent !== "boolean") fail("independent", "true or false");
 
+  const isolation: PackIsolation = raw.isolation === "isolated" ? "isolated" : "shared";
+  if (raw.isolation !== undefined && raw.isolation !== "shared" && raw.isolation !== "isolated") {
+    fail("isolation", 'either "shared" or "isolated"');
+  }
+
   const files: PackFile[] = [];
   if (!Array.isArray(raw.files)) {
     fail("files", "an array");
@@ -157,6 +193,16 @@ export function parsePackManifest(value: unknown): PackParse {
   const signature = typeof raw.signature === "string" ? raw.signature : "";
   if (signature.length === 0) fail("signature", "base64 Ed25519 signature");
 
+  // The entry has to match the mode: an isolated pack owns a page, a shared pack is a module
+  // imported into one. Getting this wrong produces a blank frame or an import of an HTML
+  // file, neither of which names the mistake.
+  if (isolation === "isolated" && !entry.endsWith(".html")) {
+    fail("entry", "an isolated pack's entry is an HTML document");
+  }
+  if (isolation === "shared" && entry.endsWith(".html")) {
+    fail("entry", 'a shared pack\'s entry is a module; declare isolation "isolated" for a page');
+  }
+
   if (issues.length > 0) return { ok: false, issues };
 
   return {
@@ -172,6 +218,7 @@ export function parsePackManifest(value: unknown): PackParse {
         ? {}
         : { minimumHostVersion: raw.minimumHostVersion as number }),
       independent: raw.independent as boolean,
+      isolation,
       files,
       signature,
     },
@@ -195,6 +242,7 @@ export function canonicalManifestBytes(manifest: PackManifestCore): Uint8Array {
     contractVersion: manifest.contractVersion,
     minimumHostVersion: manifest.minimumHostVersion ?? null,
     independent: manifest.independent,
+    isolation: manifest.isolation,
     files: manifest.files.map((file) => ({
       path: file.path,
       sha256: file.sha256,
@@ -236,18 +284,10 @@ export async function verifyPackSignature(
   publicKeyBase64: string,
 ): Promise<boolean> {
   try {
-    const key = await crypto.subtle.importKey(
-      "raw",
-      base64ToBytes(publicKeyBase64) as BufferSource,
-      { name: "Ed25519" },
-      false,
-      ["verify"],
-    );
-    return await crypto.subtle.verify(
-      { name: "Ed25519" },
-      key,
-      base64ToBytes(manifest.signature) as BufferSource,
-      canonicalManifestBytes(manifest) as BufferSource,
+    return nobleVerify(
+      base64ToBytes(manifest.signature),
+      canonicalManifestBytes(manifest),
+      base64ToBytes(publicKeyBase64),
     );
   } catch {
     return false;

@@ -25,6 +25,52 @@ path>` to the real filesystem (`WebViewLocalServer.java:682`), so an installed p
 `https://localhost` like the shell's own bundle. `import.meta.url` inside a pack is the pack's URL, so a
 relative `./assets/x.wasm` resolves to the pack. No second server, no custom scheme, no `blob:` origin.
 
+## Hosting modes, and what "isolated" means
+
+`isolation: "shared" | "isolated"` on the manifest. An `isolated` pack's entry is an HTML page and it
+renders in its own `<iframe>`; a `shared` pack's entry is a module.
+
+Verified on the emulator with a real pack: the frame loads `…/packs/probe/2.0.0/index.html`, its
+`contentWindow` is a separate realm, the pack calls `ready` and gets `module probe` back, creates a
+document through the host, saves twice, and the text is still there after leaving and reopening.
+
+|              | `shared`                     | `isolated`                                       |
+| ------------ | ---------------------------- | ------------------------------------------------ |
+| Document     | The shell's                  | Its own                                          |
+| React        | One, shared                  | Its own bundle                                   |
+| CSS          | Shares the shell's preflight | Its own scope                                    |
+| Heap / crash | Shared                       | **Shared — an iframe is not a separate process** |
+
+The last row is the honest limit. Only a second native `WebView` buys a heap boundary.
+
+## Why `shared` is not wired yet
+
+The plan was an import map: the shell publishes React at a stable URL, packs mark it external, both
+resolve to one instance. **That is blocked by the toolchain, not by configuration.** React 19 ships
+CommonJS only, and Vite 8's bundler refuses to externalise it — `Dynamic require of "react" is not
+supported`, then, with only `react` external, `Calling require for "react" in an environment that
+doesn't expose the require function`. Two attempts, both failing at runtime on a device with a blank
+screen and no useful message in the build log.
+
+So `shared` packs currently report that they need the shared host rather than mounting a blank frame.
+Unblocking it means one of: a bundler that can externalise CJS, a CJS→ESM build of React kept in step
+with upgrades, or accepting that every pack carries its own React and is therefore isolated by
+definition. The third is where the evidence points.
+
+## Two findings that only appeared on a second device
+
+**Ed25519 is not universally available in WebCrypto.** The Pixel's Vanadium has it; the emulator's
+WebView answers `Unrecognized name`. The old verification caught that and returned `false`, so the app
+told the person their pack's "signature does not match" — blaming the pack for the host's shortcoming.
+Verification now uses a pure implementation (`@noble/ed25519`, the same family the sync protocol
+already depends on), so there is no such gap. **Test cryptographic primitives on more than one WebView
+before claiming them.**
+
+**The manifest has to be written to disk, not just read from the archive.** Install wrote the payload
+files and skipped `manifest.json`, so a pack installed fine, appeared in memory, and vanished on the next
+launch because discovery had nothing to read. `writeFile` also rejects a plain string — it wants base64 —
+so text goes through one symmetric helper rather than two assumptions.
+
 ## Three things that will bite later
 
 **1. ESM caches modules by URL.** Reinstalling a pack at the same path serves the old module — the

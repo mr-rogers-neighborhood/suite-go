@@ -1,4 +1,17 @@
 export declare const PACK_FORMAT = "suite.pack";
+/**
+ * Which document a pack renders in.
+ *
+ * `shared` runs inside the shell's document and takes React from the shell's import map, so
+ * its CSS and its heap are the shell's. `isolated` gets its own document, its own CSS scope
+ * and its own React — which is what a heavy domain needs, and what stops one domain's
+ * Tailwind preflight from restyling the launcher.
+ *
+ * What `isolated` does **not** buy is a separate process: an iframe is a new document and a
+ * new JS realm in the same renderer. A runaway allocation still takes the shell with it. Only
+ * a second native WebView changes that, which is why the measurement exists.
+ */
+export type PackIsolation = "shared" | "isolated";
 /** One file inside a pack. `path` is relative to the pack root and slash-separated. */
 export interface PackFile {
     readonly path: string;
@@ -18,6 +31,8 @@ export interface PackManifestCore {
     readonly minimumHostVersion?: number;
     /** True when the pack opens on its own, without the hub. */
     readonly independent: boolean;
+    /** Which document the pack renders in. Absent means `shared`. */
+    readonly isolation: PackIsolation;
     readonly files: readonly PackFile[];
 }
 export interface PackManifest extends PackManifestCore {

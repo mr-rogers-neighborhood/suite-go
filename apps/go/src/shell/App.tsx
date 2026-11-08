@@ -1,10 +1,10 @@
 import { App as NativeApp } from "@capacitor/app";
-import type { CaptureIntent, ModuleHost } from "@suite/go";
+import type { CaptureIntent, ModuleHost, ModuleViewProps, SuiteGoModule } from "@suite/go";
 import { createModuleRegistry } from "@suite/go";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createDocumentStore } from "../host/documents.js";
 import { createFileService } from "../host/files.js";
-import { createPackStore } from "../host/packs.js";
+import { createPackStore, type InstalledPack } from "../host/packs.js";
 import { createPins, orderModules } from "../host/pins.js";
 import { createRecents, type RecentEntry } from "../host/recents.js";
 import { createKeyValueStore } from "../host/storage.js";
@@ -12,6 +12,7 @@ import { paintTheme, resolveTheme, watchColorScheme } from "../host/theme.js";
 import { canvasModule } from "../modules/canvas/index.js";
 import { scratchModule } from "../modules/scratch/index.js";
 import { Home } from "./Home.js";
+import { IsolatedModule } from "./IsolatedModule.js";
 import { MountedModule } from "./MountedModule.js";
 
 /**
@@ -24,7 +25,37 @@ import { MountedModule } from "./MountedModule.js";
  * There is no branch on a domain id anywhere in this file. If one appears, the
  * container has started learning a domain.
  */
-const registry = createModuleRegistry([scratchModule, canvasModule]);
+/**
+ * A pack, as the container sees it.
+ *
+ * The container still knows nothing about what the pack does: it has an id, a name and an
+ * entry URL. An `isolated` pack renders in its own document; a `shared` one would render in the
+ * shell's, which is not wired yet — so it says so rather than mounting a blank frame.
+ */
+function packAsModule(pack: InstalledPack): SuiteGoModule {
+  const { id, name, isolation } = pack.manifest;
+  return {
+    id,
+    name,
+    icon: "box",
+    capabilities: ["documents"],
+    accepts: [],
+    register: () => ({
+      view: ({ host }: ModuleViewProps) =>
+        isolation === "isolated" ? (
+          <IsolatedModule host={host} entryUrl={pack.entryUrl} title={name} />
+        ) : (
+          <div className="scratch">
+            <p className="empty-headline">{name} needs the shared host.</p>
+            <p className="empty-detail">
+              This build only renders isolated packs. Rebuild {name} with isolation: "isolated".
+            </p>
+          </div>
+        ),
+      dispose: () => undefined,
+    }),
+  };
+}
 const documents = createDocumentStore();
 const shellStorage = createKeyValueStore("shell");
 const pins = createPins(shellStorage);
@@ -39,8 +70,12 @@ const packs = createPackStore();
  * exposes the store so it can be exercised on a device; it holds no secret, and it goes away
  * with the install screen that replaces it.
  */
+/** Set by the App once mounted; the dev hook lives at module scope and cannot see a callback. */
+let reloadPacksFromDev: () => void = () => undefined;
+
 Object.assign(globalThis, {
   __suiteGoDev: {
+    reload: () => reloadPacksFromDev(),
     install: (base64: string) => {
       const binary = atob(base64);
       const bytes = new Uint8Array(binary.length);
@@ -73,6 +108,7 @@ type Route =
 
 export function App() {
   const [route, setRoute] = useState<Route>({ kind: "home" });
+  const [installed, setInstalled] = useState<readonly InstalledPack[]>([]);
   const [pinned, setPinned] = useState<readonly string[]>([]);
   const [recent, setRecent] = useState<readonly RecentEntry[]>([]);
   const pendingCleanup = useRef<(() => Promise<void>) | null>(null);
@@ -86,7 +122,17 @@ export function App() {
   const refresh = useCallback(async () => {
     setPinned(await pins.list());
     await refreshRecents();
+    setInstalled(await packs.discover());
   }, [refreshRecents]);
+
+  // A pack installed this session has to appear without a restart.
+  const reloadPacks = useCallback(async () => {
+    setInstalled(await packs.discover());
+  }, []);
+
+  useEffect(() => {
+    reloadPacksFromDev = () => void reloadPacks();
+  }, [reloadPacks]);
 
   useEffect(() => {
     void refresh();
@@ -200,11 +246,15 @@ export function App() {
     };
   }, [route, closeModule, refreshRecents]);
 
-  const ordered = orderModules(registry.modules, pinned);
+  const modules = [
+    ...createModuleRegistry([scratchModule, canvasModule]).modules,
+    ...installed.map(packAsModule),
+  ];
+  const ordered = orderModules(modules, pinned);
   const captureTarget = ordered.find((module) => module.capabilities.includes("capture"));
 
   if (route.kind === "module" && host) {
-    const module = registry.find(route.moduleId);
+    const module = modules.find((candidate) => candidate.id === route.moduleId);
     if (module) {
       return (
         <MountedModule

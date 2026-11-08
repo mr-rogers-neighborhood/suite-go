@@ -36,6 +36,7 @@ async function makeManifest(overrides: Partial<PackManifest> = {}): Promise<Pack
     entry: "index.js",
     contractVersion: 1,
     independent: false,
+    isolation: "shared" as const,
     files: [{ path: "index.js", sha256: await sha256Hex(body), bytes: body.byteLength }],
     ...overrides,
   };
@@ -104,10 +105,65 @@ describe("parsePackManifest", () => {
   });
 });
 
+describe("isolation", () => {
+  it("defaults to shared when the manifest does not say", async () => {
+    const { isolation: _drop, ...without } = await makeManifest();
+    const parsed = parsePackManifest(without);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.isolation).toBe("shared");
+  });
+
+  it("refuses an isolated pack whose entry is not an HTML document", async () => {
+    const parsed = parsePackManifest(await makeManifest({ isolation: "isolated" }));
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.issues.some((issue) => issue.path === "entry")).toBe(true);
+  });
+
+  it("accepts an isolated pack whose entry is a page", async () => {
+    const html = encoder.encode("<!doctype html><title>pack</title>");
+    const parsed = parsePackManifest(
+      await makeManifest({
+        isolation: "isolated",
+        entry: "index.html",
+        files: [{ path: "index.html", sha256: await sha256Hex(html), bytes: html.byteLength }],
+      }),
+    );
+    expect(parsed.ok).toBe(true);
+  });
+
+  it("refuses a shared pack whose entry is a page", async () => {
+    const html = encoder.encode("<!doctype html>");
+    const parsed = parsePackManifest(
+      await makeManifest({
+        entry: "index.html",
+        files: [{ path: "index.html", sha256: await sha256Hex(html), bytes: html.byteLength }],
+      }),
+    );
+    expect(parsed.ok).toBe(false);
+  });
+
+  it("refuses a mode it does not know", async () => {
+    const parsed = parsePackManifest({
+      ...(await makeManifest()),
+      isolation: "sandboxed",
+    } as unknown as ReturnType<typeof makeManifest>);
+    expect(parsed.ok).toBe(false);
+  });
+
+  it("is covered by the signature, so a mode cannot be swapped after signing", async () => {
+    const manifest = await makeManifest();
+    const swapped: PackManifest = { ...manifest, isolation: "isolated" };
+    expect(await verifyPackSignature(swapped, publicKeyBase64)).toBe(false);
+  });
+});
+
 describe("canonicalManifestBytes", () => {
   it("does not depend on the order the fields were written in", async () => {
     const manifest = await makeManifest();
     const reordered = {
+      isolation: manifest.isolation,
       independent: manifest.independent,
       files: manifest.files,
       contractVersion: manifest.contractVersion,

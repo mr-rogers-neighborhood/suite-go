@@ -10,6 +10,9 @@
  * change belongs in that domain's module instead.
  */
 export type { CaptureHandler, CaptureIntent, CaptureKind, CaptureOutcome, } from "./capture.js";
+export type { FrameAnswer, FrameDocument, FrameEnvelope, FrameReply, FrameRequest, FrameTheme, } from "./frame.js";
+export { FRAME_PROTOCOL, isFrameEnvelope, isFrameReply } from "./frame.js";
+export { createFrameHost, type FrameHostOptions } from "./frameClient.js";
 export type { ColorScheme, CreateDocumentInput, DocumentRecord, DocumentStore, DocumentSummary, FileFilter, FileOutcome, FileService, KeyValueStore, ModuleHost, ModuleNavigation, ModuleRecents, PickedFile, SaveDocumentInput, ThemeDensity, ThemeTokens, WriteFileInput, } from "./host.js";
 export type { InstallCleanup, ModuleViewProps, SuiteGoCapability, SuiteGoModule, SuiteGoModuleId, SuiteGoModuleRegistration, } from "./module.js";
 export { isSuiteGoModuleId } from "./module.js";

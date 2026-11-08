@@ -23,6 +23,14 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        index: fileURLToPath(new URL("index.html", import.meta.url)),
+      },
+      output: {
+        entryFileNames: "assets/[name]-[hash].js",
+      },
+    },
     // A phone WebView is the only target, so the modern baseline is safe and the
     // bundle stays small enough to cold-start quickly from local storage.
     target: "es2022",

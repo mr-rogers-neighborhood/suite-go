@@ -35,6 +35,12 @@ const out = arg("out") ?? `${id}.pack`;
 const contractVersion = Number(arg("contract") ?? 1);
 const minimumHostVersion = arg("min-host");
 const independent = args.includes("--independent");
+/**
+ * `--isolated` declares that this pack renders in its own document, which means its entry is an
+ * HTML page. Without it the pack is `shared` and its entry must be a module — the contract
+ * refuses the mismatch rather than producing a blank frame.
+ */
+const isolation = args.includes("--isolated") ? "isolated" : "shared";
 
 if (!dir || !id || !name || !version) {
   console.error(
@@ -73,6 +79,7 @@ const core = {
   contractVersion,
   ...(minimumHostVersion === undefined ? {} : { minimumHostVersion: Number(minimumHostVersion) }),
   independent,
+  isolation,
   files: manifestFiles,
 };
 
