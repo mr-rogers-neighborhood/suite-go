@@ -3,7 +3,7 @@ import type { CaptureIntent, ModuleHost, ModuleViewProps, SuiteGoModule } from "
 import { createModuleRegistry } from "@suite/go";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createDocumentStore } from "../host/documents.js";
-import { createFileService } from "../host/files.js";
+import { createFileService, mimeFor } from "../host/files.js";
 import { createPackStore, type InstalledPack } from "../host/packs.js";
 import { createPins, orderModules } from "../host/pins.js";
 import { createRecents, type RecentEntry } from "../host/recents.js";
@@ -14,6 +14,7 @@ import { scratchModule } from "../modules/scratch/index.js";
 import { Home } from "./Home.js";
 import { IsolatedModule } from "./IsolatedModule.js";
 import { MountedModule } from "./MountedModule.js";
+import { QuickCaptureSheet } from "./QuickCaptureSheet.js";
 
 /**
  * The container.
@@ -32,7 +33,11 @@ import { MountedModule } from "./MountedModule.js";
  * entry URL. Every pack renders in its own document — the manifest refuses any other mode
  * (ADR-0003) — so there is no branch here to get wrong.
  */
-function packAsModule(pack: InstalledPack): SuiteGoModule {
+function packAsModule(
+  pack: InstalledPack,
+  onQuickCapture?: () => void,
+  onExport?: (moduleId: string) => void,
+): SuiteGoModule {
   const { id, name } = pack.manifest;
   return {
     id,
@@ -47,6 +52,8 @@ function packAsModule(pack: InstalledPack): SuiteGoModule {
           entryUrl={pack.entryUrl}
           title={name}
           manifest={pack.manifest}
+          {...(onQuickCapture ? { onQuickCapture } : {})}
+          {...(onExport ? { onExport: () => onExport(id) } : {})}
         />
       ),
       dispose: () => undefined,
@@ -105,6 +112,7 @@ type Route =
 
 export function App() {
   const [route, setRoute] = useState<Route>({ kind: "home" });
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [installed, setInstalled] = useState<readonly InstalledPack[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [pinned, setPinned] = useState<readonly string[]>([]);
@@ -285,46 +293,99 @@ export function App() {
 
   const modules = [
     ...createModuleRegistry([scratchModule, canvasModule]).modules,
-    ...installed.map(packAsModule),
+    ...installed.map((pack) =>
+      packAsModule(
+        pack,
+        () => setQuickCaptureOpen(true),
+        (id) => void exportActiveDocument(id),
+      ),
+    ),
   ];
   const ordered = orderModules(modules, pinned);
   const captureTarget = ordered.find((module) => module.capabilities.includes("capture"));
+  const captureTargets = ordered.filter((module) => module.capabilities.includes("capture"));
 
-  if (route.kind === "module" && host) {
-    const module = modules.find((candidate) => candidate.id === route.moduleId);
-    if (module) {
-      return (
-        <MountedModule
-          module={module}
-          host={host}
-          {...(route.intent ? { intent: route.intent } : {})}
-          onClose={() => void closeModule()}
-          onCleanupReady={(cleanup) => {
-            pendingCleanup.current = cleanup;
-          }}
-          onFlushReady={(flush) => {
-            pendingFlush.current = flush;
-          }}
-        />
-      );
+  const exportActiveDocument = useCallback(async (moduleId: string) => {
+    try {
+      const docs = await documents.list(moduleId);
+      const firstDoc = docs[0];
+      if (!firstDoc) {
+        setNotice("No saved document found to export.");
+        return;
+      }
+      const record = await documents.open(firstDoc.id);
+      if (!record) {
+        setNotice("Document could not be opened.");
+        return;
+      }
+      const fileName = record.name.includes(".") ? record.name : `${record.name}.json`;
+      const outcome = await files.share({
+        name: fileName,
+        mimeType: mimeFor(fileName),
+        bytes: record.bytes,
+      });
+      if (!outcome.ok && outcome.reason !== "cancelled") {
+        setNotice(`Export failed: ${outcome.message ?? "unknown error"}`);
+      }
+    } catch (error) {
+      setNotice(`Export failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }
+  }, []);
+
+  const handleCapture = useCallback(
+    (body: string, targetModuleId?: string) => {
+      const targetId = targetModuleId || captureTarget?.id;
+      if (!targetId) return;
+      openModule(targetId, { kind: "text", body, source: "shell.capture" });
+    },
+    [captureTarget, openModule],
+  );
 
   return (
-    <Home
-      modules={ordered}
-      pinned={pinned}
-      recents={recent}
-      onOpen={(moduleId) => openModule(moduleId)}
-      onCapture={(body) => {
-        if (!captureTarget) return;
-        openModule(captureTarget.id, { kind: "text", body, source: "shell.capture" });
-      }}
-      onTogglePin={togglePin}
-      onInstall={() => void installFromFile()}
-      onRemove={(moduleId) => void removeDomain(moduleId)}
-      removable={new Set(installed.map((pack) => pack.manifest.id))}
-      notice={notice}
-    />
+    <>
+      {route.kind === "module" && host ? (
+        (() => {
+          const module = modules.find((candidate) => candidate.id === route.moduleId);
+          if (!module) return null;
+          return (
+            <MountedModule
+              module={module}
+              host={host}
+              {...(route.intent ? { intent: route.intent } : {})}
+              onClose={() => void closeModule()}
+              onQuickCapture={() => setQuickCaptureOpen(true)}
+              onExport={() => void exportActiveDocument(route.moduleId)}
+              onCleanupReady={(cleanup) => {
+                pendingCleanup.current = cleanup;
+              }}
+              onFlushReady={(flush) => {
+                pendingFlush.current = flush;
+              }}
+            />
+          );
+        })()
+      ) : (
+        <Home
+          modules={ordered}
+          pinned={pinned}
+          recents={recent}
+          onOpen={(moduleId) => openModule(moduleId)}
+          onCapture={(body) => handleCapture(body)}
+          onTogglePin={togglePin}
+          onInstall={() => void installFromFile()}
+          onRemove={(moduleId) => void removeDomain(moduleId)}
+          removable={new Set(installed.map((pack) => pack.manifest.id))}
+          notice={notice}
+        />
+      )}
+
+      <QuickCaptureSheet
+        open={quickCaptureOpen}
+        onClose={() => setQuickCaptureOpen(false)}
+        onCapture={handleCapture}
+        targets={captureTargets.map((m) => ({ id: m.id, name: m.name }))}
+        defaultTargetId={route.kind === "module" ? route.moduleId : captureTarget?.id}
+      />
+    </>
   );
 }

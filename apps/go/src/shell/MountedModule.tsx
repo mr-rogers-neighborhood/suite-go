@@ -1,20 +1,24 @@
 import type { CaptureIntent, ModuleHost, SuiteGoModule } from "@suite/go";
 import { useEffect, useRef, useState } from "react";
+import { ModuleHeader } from "./ModuleHeader.js";
 import { mountModule } from "./mount.js";
 
 /**
  * A module, mounted, with a frame the container owns.
  *
- * The container supplies the back affordance and the module's name; the module
- * supplies everything inside. Mounting goes through `mountModule`, which registers,
- * installs the app's bridge and hands back one idempotent cleanup — so leaving by any
- * route, and StrictMode's double mount in development, both settle to one teardown.
+ * The container supplies the back affordance, the WeChat-inspired navigation capsule,
+ * and the module's frame; the module supplies everything inside. Mounting goes through
+ * `mountModule`, which registers, installs the app's bridge and hands back one idempotent
+ * cleanup — so leaving by any route, and StrictMode's double mount in development,
+ * both settle to one teardown.
  */
 export function MountedModule({
   module,
   host,
   intent,
   onClose,
+  onQuickCapture,
+  onExport,
   onCleanupReady,
   onFlushReady,
 }: {
@@ -22,6 +26,8 @@ export function MountedModule({
   readonly host: ModuleHost;
   readonly intent?: CaptureIntent;
   readonly onClose: () => void;
+  readonly onQuickCapture?: () => void;
+  readonly onExport?: () => void;
   /** Lets the container await this module's teardown before mounting the next one. */
   readonly onCleanupReady?: (cleanup: () => Promise<void>) => void;
   /** Lets the container flush this module when the app leaves the foreground. */
@@ -55,7 +61,12 @@ export function MountedModule({
 
   if (!outcome.ok) {
     return (
-      <ShellFrame module={module} onClose={onClose}>
+      <ShellFrame
+        module={module}
+        onClose={onClose}
+        {...(onQuickCapture ? { onQuickCapture } : {})}
+        {...(onExport ? { onExport } : {})}
+      >
         <div className="scratch">
           <p className="empty-headline">{module.name} could not start.</p>
           <p className="empty-detail">
@@ -70,7 +81,12 @@ export function MountedModule({
   const View = outcome.registration.view;
 
   return (
-    <ShellFrame module={module} onClose={onClose}>
+    <ShellFrame
+      module={module}
+      onClose={onClose}
+      {...(onQuickCapture ? { onQuickCapture } : {})}
+      {...(onExport ? { onExport } : {})}
+    >
       <View host={host} />
     </ShellFrame>
   );
@@ -79,20 +95,25 @@ export function MountedModule({
 function ShellFrame({
   module,
   onClose,
+  onQuickCapture,
+  onExport,
   children,
 }: {
   readonly module: SuiteGoModule;
   readonly onClose: () => void;
+  readonly onQuickCapture?: () => void;
+  readonly onExport?: () => void;
   readonly children?: React.ReactNode;
 }) {
   return (
     <div className="module">
-      <header className="module-header">
-        <button type="button" className="module-back" onClick={onClose}>
-          Suite Go
-        </button>
-        <span className="module-title">{module.name}</span>
-      </header>
+      <ModuleHeader
+        title={module.name}
+        moduleName={module.name}
+        onClose={onClose}
+        {...(onQuickCapture ? { onQuickCapture } : {})}
+        {...(onExport ? { onExport } : {})}
+      />
       <div className="module-body">{children}</div>
     </div>
   );

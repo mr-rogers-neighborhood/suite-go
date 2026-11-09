@@ -2,6 +2,7 @@ import type { ModuleHost, PackManifest } from "@suite/go";
 import { useEffect, useRef } from "react";
 import { resolveTheme } from "../host/theme.js";
 import { serveFrame } from "./frameBridge.js";
+import { ModuleHeader } from "./ModuleHeader.js";
 
 /**
  * A pack that renders in its own document.
@@ -21,11 +22,15 @@ export function IsolatedModule({
   entryUrl,
   title,
   manifest,
+  onQuickCapture,
+  onExport,
 }: {
   readonly host: ModuleHost;
   readonly entryUrl: string;
   readonly title: string;
   readonly manifest: PackManifest;
+  readonly onQuickCapture?: () => void;
+  readonly onExport?: () => void;
 }) {
   const frame = useRef<HTMLIFrameElement | null>(null);
 
@@ -44,12 +49,13 @@ export function IsolatedModule({
 
   return (
     <div className="module">
-      <header className="module-header">
-        <button type="button" className="module-back" onClick={() => host.navigation.close()}>
-          Suite Go
-        </button>
-        <span className="module-title">{title}</span>
-      </header>
+      <ModuleHeader
+        title={title}
+        moduleName={manifest.name}
+        onClose={() => host.navigation.close()}
+        {...(onQuickCapture ? { onQuickCapture } : {})}
+        {...(onExport ? { onExport } : {})}
+      />
       <div className="module-body">
         {/*
           No sandbox attribute: a sandboxed frame without `allow-same-origin` cannot fetch the

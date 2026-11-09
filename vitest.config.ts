@@ -25,7 +25,7 @@ export default defineConfig({
         test: {
           name: "app",
           environment: "node",
-          include: ["apps/go/src/**/*.test.ts"],
+          include: ["apps/go/src/**/*.test.ts", "apps/go/src/**/*.test.tsx"],
         },
       },
     ],
