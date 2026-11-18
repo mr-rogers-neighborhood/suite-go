@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+// Supplied by scripts/android.mjs from app.config.json, so the APK, the JS package and the config
+// cannot disagree. The defaults keep a bare `./gradlew` working without the script. Bound to locals
+// rather than inlined: the Groovy DSL reads an inline `?:` inside `defaultConfig` as part of the
+// property call and reports the result as "Value is null".
+def suiteVersionCode = (project.findProperty("suiteVersionCode") ?: "2") as Integer
+def suiteVersionName = (project.findProperty("suiteVersionName") ?: "0.1.0").toString()
+
 android {
     namespace = "run.suite.go"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,10 +14,8 @@ android {
         applicationId "run.suite.go"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Supplied by scripts/android.mjs from app.config.json, so the APK, the JS package and the
-        // config cannot disagree. The defaults keep a bare `./gradlew` working without the script.
-        versionCode (project.findProperty("suiteVersionCode") ?: "2").toString().toInteger()
-        versionName (project.findProperty("suiteVersionName") ?: "0.1.0")
+        versionCode suiteVersionCode
+        versionName suiteVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
