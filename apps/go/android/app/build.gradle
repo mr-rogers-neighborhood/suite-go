@@ -7,8 +7,10 @@ android {
         applicationId "run.suite.go"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Supplied by scripts/android.mjs from app.config.json, so the APK, the JS package and the
+        // config cannot disagree. The defaults keep a bare `./gradlew` working without the script.
+        versionCode (project.findProperty("suiteVersionCode") ?: "2").toString().toInteger()
+        versionName (project.findProperty("suiteVersionName") ?: "0.1.0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +18,27 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // A release build is signed with a key that never enters this repository: the four values come
+    // from the environment, and a missing one fails the build with a sentence rather than producing
+    // an unsigned APK that looks finished. `scripts/android.mjs release` is the only caller that
+    // sets them; the debug build does not need any of this.
+    signingConfigs {
+        if (System.getenv("SUITE_GO_KEYSTORE") != null) {
+            release {
+                storeFile file(System.getenv("SUITE_GO_KEYSTORE"))
+                storePassword System.getenv("SUITE_GO_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("SUITE_GO_KEY_ALIAS")
+                keyPassword System.getenv("SUITE_GO_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (System.getenv("SUITE_GO_KEYSTORE") != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

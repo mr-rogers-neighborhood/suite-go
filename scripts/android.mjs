@@ -22,10 +22,10 @@ import { spawn } from "node:child_process";
 import { existsSync, watch } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import config from "../apps/go/app.config.json" with { type: "json" };
+import appConfig from "../apps/go/app.config.json" with { type: "json" };
 import { resolveJdk, resolveSdkRoot } from "./preflight.mjs";
 
-const { appId } = config;
+const { appId } = appConfig;
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const APP_DIR = join(ROOT, "apps", "go");
@@ -225,6 +225,68 @@ async function pickDevice(requested) {
   return only ?? null;
 }
 
+/**
+ * The version Gradle should stamp, from the config that also names the app.
+ *
+ * One number in one file: `app.config.json` carries it, `apps/go/package.json` repeats it for the
+ * JavaScript side, and Gradle receives it as a property. The test in
+ * `apps/go/src/host/version.test.ts` fails if the three drift apart.
+ */
+function versionArgs() {
+  return [
+    `-PsuiteVersionName=${appConfig.version}`,
+    `-PsuiteVersionCode=${String(appConfig.versionCode)}`,
+  ];
+}
+
+/**
+ * Build a *release* APK, signed with a key that is not in this repository.
+ *
+ * Deliberately a different command from `install`: a debug build is what you iterate with, and a
+ * release build is a promise to a person that this is the app. The four values come from the
+ * environment, and a missing one is refused before Gradle produces an unsigned artifact that looks
+ * finished.
+ */
+async function release(options) {
+  const missing = [
+    "SUITE_GO_KEYSTORE",
+    "SUITE_GO_KEYSTORE_PASSWORD",
+    "SUITE_GO_KEY_ALIAS",
+    "SUITE_GO_KEY_PASSWORD",
+  ].filter((name) => !process.env[name]);
+  if (missing.length > 0) {
+    fail(
+      `A release APK needs a signing key, and ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} not set.`,
+      "Create one with `keytool -genkeypair -v -keystore suite-go.jks -alias suite-go -keyalg RSA -keysize 4096 -validity 10000`,\n" +
+        "export the four variables above, and keep the keystore out of this repository.",
+    );
+    return false;
+  }
+
+  await command("pnpm", ["--filter", "@suite/go-app", "build"]);
+  await command("pnpm", ["exec", "cap", "sync", "android"], { cwd: APP_DIR });
+  await commandTee("./gradlew", ["assembleRelease", ...versionArgs(), "-q"], { cwd: ANDROID_DIR });
+
+  const apk = join(
+    ANDROID_DIR,
+    "app",
+    "build",
+    "outputs",
+    "apk",
+    "release",
+    "app-release.apk",
+  );
+  if (!existsSync(apk)) {
+    fail(`Gradle reported success but ${apk} is missing.`, "Check the Gradle output above.");
+    return false;
+  }
+  console.log(`\n${GREEN}release APK${RESET} ${apk} (${appConfig.appName} ${appConfig.version})`);
+  if (options.publish !== true) {
+    console.log(`${DIM}Nothing was uploaded. The artifact is on disk and nothing else.${RESET}`);
+  }
+  return true;
+}
+
 async function buildAndInstall(device, skipBuild = false) {
   if (!existsSync(ANDROID_DIR)) {
     fail(
@@ -247,7 +309,7 @@ async function buildAndInstall(device, skipBuild = false) {
   if (!skipBuild) {
     await command("pnpm", ["--filter", "@suite/go-app", "build"]);
     await command("pnpm", ["exec", "cap", "sync", "android"], { cwd: APP_DIR });
-    await commandTee("./gradlew", ["assembleDebug", "-q"], { cwd: ANDROID_DIR });
+    await commandTee("./gradlew", ["assembleDebug", ...versionArgs(), "-q"], { cwd: ANDROID_DIR });
   }
 
   if (!existsSync(APK)) {
@@ -445,6 +507,9 @@ switch (subcommand) {
   case "emulator":
     await emulatorCommand(options);
     break;
+  case "release":
+    await release(options);
+    break;
   default:
-    fail(`Unknown command ${subcommand}.`, "devices | install | watch | emulator");
+    fail(`Unknown command ${subcommand}.`, "devices | install | watch | emulator | release");
 }
