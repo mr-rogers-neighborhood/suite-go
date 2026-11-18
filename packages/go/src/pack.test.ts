@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   bytesToBase64,
   canonicalManifestBytes,
+  checkNetworkPolicy,
   isSafePackPath,
   type PackManifest,
   packAllows,
+  packDocumentSealsNetwork,
   packFitsHost,
   parsePackManifest,
   sha256Hex,
@@ -317,5 +319,109 @@ describe("packFitsHost", () => {
     if (fit.ok) return;
     expect(fit.reason).toBe("host");
     expect(fit.message).toContain("3 or later");
+  });
+});
+
+describe("the network a pack did not ask for", () => {
+  const sealed = `<!doctype html><head>
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'">
+  </head></html>`;
+
+  it("reads a policy that closes every fetch path", () => {
+    expect(packDocumentSealsNetwork(sealed)).toBe(true);
+  });
+
+  it("accepts connect-src 'self', which a pack needs to load its own wasm", () => {
+    // Measured on a device: with `connect-src 'none'` a Loro pack renders a blank frame, because
+    // wasm-bindgen fetches its `.wasm` same-origin. 'self' still cannot reach a remote origin.
+    expect(
+      packDocumentSealsNetwork(
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'">`,
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses a connect-src that names a remote origin", () => {
+    expect(
+      packDocumentSealsNetwork(
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.example">`,
+      ),
+    ).toBe(false);
+  });
+
+  it("refuses a policy with no connect-src, which leaves fetch open", () => {
+    expect(
+      packDocumentSealsNetwork(
+        `<meta http-equiv="Content-Security-Policy" content="default-src 'self'">`,
+      ),
+    ).toBe(false);
+  });
+
+  it("refuses a policy with no default-src, because img-src would inherit nothing", () => {
+    // The subtler half: `connect-src 'none'` closes fetch, but `<img src="https://elsewhere/">`
+    // is governed by img-src, which falls back to default-src, which is absent here.
+    expect(
+      packDocumentSealsNetwork(
+        `<meta http-equiv="Content-Security-Policy" content="connect-src 'none'">`,
+      ),
+    ).toBe(false);
+  });
+
+  it("refuses a permissive default-src rather than interpreting it", () => {
+    for (const permissive of ["*", "'self' https://api.example", "https:", "'unsafe-inline'"]) {
+      expect(
+        packDocumentSealsNetwork(
+          `<meta http-equiv="Content-Security-Policy" content="default-src ${permissive}; connect-src 'none'">`,
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it("finds the policy among other meta tags", () => {
+    // A pack's head is not one tag; the policy is found wherever it sits.
+    const html = [
+      '<meta charset="utf-8">',
+      '<meta name="viewport" content="width=device-width">',
+      `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'none'">`,
+    ].join("");
+    expect(packDocumentSealsNetwork(html)).toBe(true);
+  });
+
+  it("refuses a policy written with entities, rather than decoding it", () => {
+    // `&#39;self&#39;` is what a template system emits when it escapes quotes. It is refused
+    // rather than unescaped: the rule is a line a person can audit, and a checker that
+    // decodes here is a checker with a second parser to get wrong.
+    const escaped = `<meta http-equiv="Content-Security-Policy" content="default-src &#39;self&#39;; connect-src &#39;none&#39;">`;
+    expect(packDocumentSealsNetwork(escaped)).toBe(false);
+  });
+
+  it("accepts a manifest that declares the capability, policy or not", async () => {
+    const manifest = await makeManifest({ capabilities: ["documents", "network"] });
+    expect(checkNetworkPolicy(manifest, {})).toEqual({ ok: true });
+  });
+
+  it("refuses an undeclared pack whose entry does not seal the network", async () => {
+    const manifest = await makeManifest({ capabilities: ["documents"] });
+    const result = checkNetworkPolicy(manifest, {
+      "index.html": encoder.encode("<!doctype html><title>pack</title>"),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toContain('does not declare the "network" capability');
+      expect(result.message).toContain("connect-src 'none'");
+    }
+  });
+
+  it("accepts an undeclared pack that seals it", async () => {
+    const manifest = await makeManifest({ capabilities: ["documents"] });
+    expect(checkNetworkPolicy(manifest, { "index.html": encoder.encode(sealed) })).toEqual({
+      ok: true,
+    });
+  });
+
+  it("refuses an undeclared pack whose entry is missing, rather than passing it", async () => {
+    const manifest = await makeManifest({ capabilities: ["documents"] });
+    expect(checkNetworkPolicy(manifest, {}).ok).toBe(false);
   });
 });

@@ -44,9 +44,13 @@ const SHA256_HEX = /^[0-9a-f]{64}$/u;
  * a manifest with no capabilities renders and does nothing else, which is the correct starting
  * point for something that arrived over the network.
  *
- * `network` is declared but **advisory**: the host cannot stop a pack from calling `fetch` while
- * the pack shares the shell's origin (ADR-0002). It becomes enforceable with the origin boundary,
- * and saying so here is better than implying a check that does not exist.
+ * `network` is the one capability a pack can be held to today without an origin boundary. The host
+ * cannot stop a same-origin pack from calling `fetch`, but a pack that does not declare `network`
+ * must ship a Content-Security-Policy that forbids egress, and the install refuses it otherwise
+ * (`checkNetworkPolicy`). The browser enforces the policy; the host enforces that it is present.
+ *
+ * The other four are enforced per request by the frame bridge, which is a capability boundary
+ * rather than a sandbox: a pack can still reach the shell's DOM (ADR-0002).
  */
 export const PACK_CAPABILITIES = ["documents", "storage", "files", "recents", "network"];
 export function isPackCapability(value) {
@@ -295,6 +299,81 @@ export async function verifyPackFiles(manifest, read) {
  */
 export function packAllows(manifest, capability) {
     return manifest.capabilities.includes(capability);
+}
+/**
+ * Does this document forbid itself the network?
+ *
+ * `network` used to be described here as advisory, on the grounds that the host cannot stop a
+ * same-origin pack from calling `fetch`. That was wrong in one specific and useful way: a pack's
+ * **own** Content-Security-Policy is enforced by the browser for that document, whatever origin it
+ * shares. So the host cannot block the request, but it can refuse to install a pack that has not
+ * blocked it for itself — and because every file in a pack is hash-verified against the manifest,
+ * what was checked at install is what runs later.
+ *
+ * Two directives are required, not one:
+ *
+ * - `connect-src 'none'` **or** `connect-src 'self'` — the first closes every fetch channel; the
+ *   second is what a pack with WebAssembly actually needs, because wasm-bindgen loads its `.wasm`
+ *   with `fetch()` and that request is same-origin. `'self'` cannot reach a remote origin, so the
+ *   exfiltration channel that matters stays closed. **Measured:** `'none'` produces a blank frame
+ *   for a pack that uses Loro, which is how this distinction was found.
+ * - `default-src 'self'` (or `'none'`) — because `img-src`, `script-src` and the rest fall back to
+ *   it. Without this, `<img src="https://elsewhere/?d=…">` is an exfiltration channel that
+ *   `connect-src` does not close.
+ *
+ * Only a literal `'self'` or `'none'` is accepted for `default-src`. A policy naming any origin,
+ * scheme or wildcard is refused rather than interpreted: the point is a rule a person can audit in
+ * one line, not a CSP parser.
+ *
+ * The `content` attribute must be double-quoted, because a single-quoted one cannot contain
+ * `'self'` — HTML would end the attribute at the first inner quote. Entities are not decoded, so a
+ * templating system that writes `&#39;self&#39;` produces a policy this refuses, loudly, rather
+ * than one it misreads.
+ */
+export function packDocumentSealsNetwork(html) {
+    const policies = [...html.matchAll(/<meta\b[^>]*>/giu)]
+        .filter((match) => /http-equiv\s*=\s*["']?content-security-policy["']?/iu.test(match[0]))
+        .map((match) => /content\s*=\s*("([^"]*)"|'([^']*)')/iu.exec(match[0]))
+        .flatMap((match) => (match === null ? [] : [match[2] ?? match[3] ?? ""]));
+    return policies.some((policy) => {
+        const directives = new Map();
+        for (const part of policy.split(";")) {
+            const [name, ...values] = part.trim().split(/\s+/u);
+            if (name === undefined || name.length === 0)
+                continue;
+            directives.set(name.toLowerCase(), values.join(" ").toLowerCase());
+        }
+        const connect = directives.get("connect-src") ?? "";
+        const fallback = directives.get("default-src") ?? "";
+        const sealedFallback = fallback === "'self'" || fallback === "'none'";
+        const sealedConnect = connect === "'none'" || connect === "'self'";
+        return sealedFallback && sealedConnect;
+    });
+}
+/**
+ * Does this pack honour the capability it did not declare?
+ *
+ * A pack that declares `network` may do as it likes; it asked, and a person installing it can be
+ * told so. A pack that does not declare it has to prove it cannot reach the network, because the
+ * alternative is a capability model where one of the five words means nothing.
+ */
+export function checkNetworkPolicy(manifest, files) {
+    if (packAllows(manifest, "network"))
+        return { ok: true };
+    const entry = files[manifest.entry];
+    if (entry === undefined) {
+        return { ok: false, message: `${manifest.entry} is not in this pack` };
+    }
+    if (!packDocumentSealsNetwork(new TextDecoder().decode(entry))) {
+        return {
+            ok: false,
+            message: `${manifest.name} does not declare the "network" capability, so ${manifest.entry} must ` +
+                `carry <meta http-equiv="Content-Security-Policy"> with default-src 'self' and ` +
+                `connect-src 'none' (or 'self' when it loads its own WebAssembly). Declare the capability ` +
+                "instead if the pack really needs the network.",
+        };
+    }
+    return { ok: true };
 }
 export function packFitsHost(manifest, host) {
     if (manifest.contractVersion > host.contractVersion) {

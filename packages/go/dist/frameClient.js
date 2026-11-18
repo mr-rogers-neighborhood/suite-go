@@ -23,25 +23,46 @@ function fromBase64(value) {
         bytes[index] = binary.charCodeAt(index);
     return bytes;
 }
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 export function createFrameHost(options) {
     const parent = options.parent ?? globalThis.parent;
+    const timeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     const pending = new Map();
     let nextId = 1;
     let queue = Promise.resolve();
     const listener = (event) => {
         if (!isFrameReply(event.data))
             return;
-        const resolve = pending.get(event.data.id);
-        if (!resolve)
+        const waiting = pending.get(event.data.id);
+        if (!waiting)
             return;
         pending.delete(event.data.id);
-        resolve(event.data);
+        waiting.resolve(event.data);
     };
     globalThis.addEventListener("message", listener);
     const send = (request, payload) => {
         const run = async () => {
             const id = nextId++;
-            const answer = new Promise((resolve) => pending.set(id, resolve));
+            const answer = new Promise((resolve, reject) => {
+                // `unref` is not available in a WebView; the timer is cleared on settle instead, which is
+                // enough because nothing else keeps a frame's lifetime beyond `dispose`.
+                const timer = setTimeout(() => {
+                    if (!pending.delete(id))
+                        return;
+                    reject(new Error(`the shell did not answer ${request.method} within ${timeoutMs} ms; ` +
+                        "it may have been released while this module was open"));
+                }, timeoutMs);
+                pending.set(id, {
+                    resolve: (reply) => {
+                        clearTimeout(timer);
+                        resolve(reply);
+                    },
+                    reject: (error) => {
+                        clearTimeout(timer);
+                        reject(error);
+                    },
+                });
+            });
             parent.postMessage({ protocol: FRAME_PROTOCOL, id, request, ...(payload === undefined ? {} : { payload }) }, "*");
             const reply = await answer;
             if (!reply.ok)
@@ -53,8 +74,10 @@ export function createFrameHost(options) {
         return queue;
     };
     const documents = {
-        async list() {
-            const value = await send({ method: "documents.list" });
+        async list(moduleId) {
+            const value = await send(moduleId === undefined
+                ? { method: "documents.list" }
+                : { method: "documents.list", moduleId });
             return value ?? [];
         },
         async create(input) {
@@ -129,6 +152,11 @@ export function createFrameHost(options) {
         },
         dispose() {
             globalThis.removeEventListener("message", listener);
+            // Reject rather than clear: a caller awaiting a request has to learn it will never be
+            // answered, or it waits forever on a promise nobody holds any more.
+            for (const [, waiting] of pending) {
+                waiting.reject(new Error("the shell released this module before answering"));
+            }
             pending.clear();
         },
     };

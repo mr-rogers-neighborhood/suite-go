@@ -1,7 +1,10 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import {
   bytesToBase64,
+  checkNetworkPolicy,
   type PackManifest,
+  packAllows,
+  packDocumentSealsNetwork,
   packFitsHost,
   parsePackManifest,
   sha256Hex,
@@ -60,6 +63,7 @@ export type InstallOutcome =
         | "untrusted"
         | "files"
         | "host"
+        | "policy"
         | "failed";
       readonly message: string;
     };
@@ -151,6 +155,23 @@ export interface PackStore {
   directoryOf(id: string): Promise<string>;
 }
 
+/**
+ * Does the installed pack still honour the network rule?
+ *
+ * Reads the entry document from disk, which is the only file the policy lives in. A pack whose entry
+ * cannot be read is treated as not honouring it: the alternative is offering a pack whose declaration
+ * cannot be checked, which is the state this rule exists to end.
+ */
+async function packHonoursNetworkPolicy(dir: string, manifest: PackManifest): Promise<boolean> {
+  if (packAllows(manifest, "network")) return true;
+  try {
+    const html = await readTextFile(`${dir}/${manifest.entry}`);
+    return packDocumentSealsNetwork(html);
+  } catch {
+    return false;
+  }
+}
+
 export function createPackStore(
   options: {
     readonly publicKey?: string;
@@ -208,6 +229,10 @@ export function createPackStore(
             const parsed = parsePackManifest(JSON.parse(text));
             if (!parsed.ok) continue;
             if (!(await verifyPackSignature(parsed.value, publicKey))) continue;
+            // Checked here as well as at install, because a pack installed before this rule existed
+            // would otherwise be offered forever: the rule has to apply to what is on disk, not only
+            // to what arrives next.
+            if (!(await packHonoursNetworkPolicy(dir, parsed.value))) continue;
 
             const baseDir = await absoluteDir(`${id}/${version}`);
             found.push({
@@ -270,6 +295,11 @@ export function createPackStore(
           message: `That pack is damaged: ${first?.path ?? "a file"} does not match its manifest.`,
         };
       }
+
+      // The files are verified, so what this reads is what would be installed. A pack that does not
+      // declare the network has to prove it cannot reach it; see `checkNetworkPolicy`.
+      const policy = checkNetworkPolicy(manifest, files);
+      if (!policy.ok) return { ok: false, reason: "policy", message: policy.message };
 
       const fit = packFitsHost(manifest, host);
       if (!fit.ok) return { ok: false, reason: "host", message: fit.message };
