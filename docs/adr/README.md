@@ -17,6 +17,8 @@ decision was made is usually the part worth keeping.
 | [0005](0005-durability-boundaries.md)            | Flush on lifecycle boundaries                            | accepted |
 | [0006](0006-the-doorbell-is-reserved.md)         | The doorbell is reserved, not built                      | accepted |
 | [0007](0007-collaboration-is-a-session.md)       | Collaboration is a foreground session                    | accepted |
+| [0008](0008-a-reference-is-data.md)              | A reference is data; the host only opens it              | proposed |
+| [0009](0009-a-schema-bump-is-a-migration.md)     | A schema bump is a migration the app performs            | proposed |
 
 ## Related, outside this directory
 
@@ -26,3 +28,7 @@ decision was made is usually the part worth keeping.
   — the relay's host is any device, which is why mobile is a peer rather than a client.
 - [blind doorbell proposal](../reference/blind-doorbell-proposal.md) — the protocol question, addressed to
   suite-sync rather than decided here.
+- [pairing protocol](../reference/pairing-protocol.md) — the handshake ADR-0008's reference shape and the
+  invite work will both use, stated as a session type rather than a calculus.
+- [planner in Suite Go](../reference/planner.md) — the first real domain in the container, and the four
+  things it proved.

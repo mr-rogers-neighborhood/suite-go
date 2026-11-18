@@ -54,6 +54,45 @@ encrypted frames it was going to fetch anyway.
   the target device, no hosted server, and no third party that may send on our behalf. UnifiedPush or a
   push endpoint on the user's own relay are the two paths that keep both promises.
 
+## The same argument, as a session type
+
+The table above says what a wake frame must not carry. That is an assertion; a projection makes it a
+structure. Three participants — the device that committed (`S`), the relay (`R`), the device to wake (`T`) —
+and the document payload abstracted as `τ`:
+
+```text
+Doorbell(τ) =
+    S → R : frames(workspace, device = T, seal(τ)*)
+    R → R : note "T has frames"                       -- the relay's own bookkeeping
+    R → T : wake(workspace)
+    T → R : since(after)
+    R → T : frame(index, epoch, seal(τ))*
+    T → T : apply conforming frames only
+```
+
+Project to the relay:
+
+```text
+R_local : frames(ws, device, seal(τ)*) . (wake(device)?) . since? . frame(seal(τ))*
+```
+
+`R_local` mentions `τ` nowhere it can open, mentions no author, no version vector and no document id —
+**because none of them is a message it ever sends or receives.** The table in this document is now derivable
+rather than argued: every field it forbids is a field the projection would have to carry, and the projection
+does not.
+
+Two things the type makes obvious that the prose only implies:
+
+- **`wake` carries `workspace` and nothing else that identifies content.** The recipient's only legal
+  response is `since(after)` — the type has no branch in which a wake tells it _what_ changed, which is the
+  same reason the relay cannot be asked to say.
+- **Coalescing is a relay-local behaviour.** "Note that T has frames" is an internal transition, not a
+  message, so a relay may collapse twenty of them into one `wake` without any device learning anything new.
+  That is where the coarseness lives, and it is the right place for it.
+
+The full sync session type, with this conversation as one branch of it, is in
+[suite-sync's protocol note](https://github.com/mr-rogers-neighborhood/suite-sync/blob/main/docs/protocol-sessions.md).
+
 ## What is being asked
 
 Not a decision, and not code. Two things worth recording in `suite-sync` when it is convenient:

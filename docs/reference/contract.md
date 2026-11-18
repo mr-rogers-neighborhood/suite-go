@@ -65,6 +65,24 @@ Two consequences follow from the document refusal, and both are load-bearing:
 2. **The container cannot tell a `.planner` from a `.budget`**, which is exactly why adding the second
    domain will not require touching it.
 
+### One ordering rule, and it is not the container's
+
+`save` and `remove` take an id, and the only ids that exist are the ones `create` or `open` returned. So a
+module's real sequence is `create|open → save*`, and it is the **module's** obligation, not a state machine
+the host keeps. The host holds no session: any request may arrive at any time, and each is answered on its
+own.
+
+Two things make that safe rather than sloppy:
+
+- **The bridge serialises requests** through one chain, in order, so a `save` cannot overtake the `create`
+  it depends on. A module that issues them without awaiting still behaves correctly.
+- **A request that is never answered is rejected** after ten seconds, not left hanging. That matters more
+  than it sounds: because the chain is serial, one unanswered request used to stall every later one —
+  including a debounced save — and a reply is dropped whenever the frame's window is already gone.
+
+The sync protocol has a full session type of its own, with projections and the epoch rule stated once, in
+[suite-sync's protocol note](https://github.com/mr-rogers-neighborhood/suite-sync/blob/main/docs/protocol-sessions.md).
+
 ## Registration is checked, loudly
 
 `createModuleRegistry` refuses a declaration rather than accepting a broken one:

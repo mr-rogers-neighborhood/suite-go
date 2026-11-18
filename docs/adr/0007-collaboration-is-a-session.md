@@ -35,3 +35,28 @@ stored state.
 - The deferred runtime primitives are the largest known unknown in the platform framing. When they are
   designed, this record is the one to revisit, because it deliberately leaves the question open rather
   than answering it with a guess.
+
+## Amendment — 2026-11-18: the deferral is about presence, and only presence
+
+This record defers "runtime-supplied presence primitives — cursors, awareness, a sharing model" and
+calls them "the largest known unknown in the platform framing". The deferral is right. The label is
+wrong, and it has started to hide a different question.
+
+**Presence is not what is missing.** Cursors and awareness are things a _live session_ needs, and this
+record correctly says a suspended app cannot provide them. What the platform framing needs first is
+**cross-domain context**: a Planner entry that points at a Canvas card, or a Budget expense that names
+the project it belongs to. That is not presence — it needs no live connection, no awareness protocol,
+and no second app to be running.
+
+So the deferral is narrowed, not lifted:
+
+- Presence primitives stay deferred, for the reasons above.
+- A **reference** — `{appId, documentId, target?}` stored as data in the receiving document — and a
+  **navigation capability** the host brokers (`open(reference)`) are a separate concern that this
+  record was never about. They are not covered by the deferral, and a reader should not cite this
+  record to postpone them.
+- ADR-0062 in `suite-canvas` already draws the fence that makes the reference safe: a link carries no
+  data. A reference points; it does not copy, subscribe, or merge.
+
+The largest unknown in the platform framing is therefore re-stated: it is **who owns a reference when
+the app that made it is gone**, which is a question about identity and longevity, not about cursors.

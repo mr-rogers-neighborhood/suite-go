@@ -1,5 +1,9 @@
 # Proposal: `loadSnapshot` may return null
 
+> **Status: landed.** `suite-planner` now declares `Promise<Uint8Array | null>` and creates its own
+> document when a host answers `null`. `suite-dev/docs/reference/bridges.md` documents the nullable
+> contract. Kept as the record of why, not as an open request.
+
 For the Planner bridge, and for whoever owns `docs/reference/bridges.md` in suite-dev. Written from the
 mobile side, where the container cannot do what the current signature asks.
 

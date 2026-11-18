@@ -36,25 +36,39 @@ The obvious fix — import `@suite/planner-core` from the mobile app — is the 
 `suite-go`'s typecheck and build depend on a sibling checkout, which the public repository's pipeline
 does not have. The mobile build would only work on a machine with all six repos cloned.
 
-## The decision
+## The decision: `loadSnapshot()` may return `null` (this replaced the fixture)
 
-Ship a **seed snapshot as a fixture**.
+An earlier version of this page decided to **ship a seed snapshot as a fixture**, because the bridge
+had no way to say "there is no document yet". That is no longer necessary:
 
-1. Generate one `.planner` snapshot once, from `planner-core`, and commit it under
-   `apps/go/src/modules/planner/seed.planner`.
-2. The bridge loads those bytes on first run, then persists whatever the app writes from then on.
-3. `suite-go` keeps no runtime or type-level dependency on the sibling repo; the fixture is data.
+- `suite-planner/packages/core/src/ports.ts` now declares `loadSnapshot(): Promise<Uint8Array | null>`.
+- `bootDocument()` calls `WorkspaceDocument.create()` when it receives `null`.
+- `suite-dev/docs/reference/bridges.md` documents the nullable contract, and
+  [`loadsnapshot-proposal.md`](loadsnapshot-proposal.md) — the request that asked for it — is landed.
 
-The fixture has a cost worth stating: when Planner's schema version moves, the seed must be
-regenerated, and the app's own schema-version path has to cope with an old seed. That is a smaller,
-more honest cost than a hidden cross-repository build requirement — and it is testable, which the
-alternative is not.
+So the fixture is gone, and so is its cost. Points 1–3 of the old decision are withdrawn:
+
+1. No `.planner` seed is committed anywhere. The container carries no domain artifact, so nothing goes
+   stale when Planner's schema moves.
+2. There is no first-run special case. **`DocumentStore.create()` returns `bytes: new Uint8Array(0)`**
+   (`apps/go/src/host/documents.ts:101`), so the bridge's rule is exact and testable: an empty payload
+   means `null`, and Planner creates its own schema-initialised document.
+3. `suite-go` still keeps no dependency on the sibling repo — by construction, not by carrying data.
+
+A second consequence, not visible when the fixture was decided: **the pack owns the document.**
+Planner's bridge only offers `commit(update)`, and desktop main is what applies updates and writes the
+file. A pack has no main, so the bridge prelude holds the `LoroDoc`, applies each update, and writes a
+snapshot at the ADR-0005 boundaries (foreground loss, leave, close). Writing an _update_ as the whole
+file would corrupt the document; writing per keystroke is the amplification ADR-0005 refuses.
 
 ## Still to decide after that
 
-- **CSS isolation.** The Planner bundle ships Tailwind, whose preflight is global. Mounted in the same
-  document as the shell it will restyle the shell's own elements. Either the shell adopts Tailwind too,
-  or Planner mounts in its own document (`./planner/index.html`) with a bridge prelude. The second is
-  cleaner and closer to the process isolation desktop has, at the cost of a page navigation per open.
+- **CSS isolation: decided — own document.** The Planner bundle ships Tailwind, whose preflight is
+  global, so it cannot share the shell's document without restyling the shell. Planner therefore mounts
+  as an isolated pack (`./planner/index.html` with a bridge prelude on `@suite/go`'s `createFrameHost`),
+  which is also what makes the container stay domain-blind.
+- **Layout.** `Shell.tsx` is three fixed panes and `Sidebar` is `w-[228px]` with no breakpoints, so a
+  phone shows the sidebar before the calendar has room. `@suite/theme`'s density axis (v0.16.0) fixes
+  control size, not layout. A breakpoint that collapses the sidebar is the minimum before this ships.
 - **Reminders.** `onReminder` has no notification plugin yet; the bridge returns a no-op unsubscriber
   and the UI says so rather than silently dropping them.
