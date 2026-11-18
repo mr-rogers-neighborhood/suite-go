@@ -267,15 +267,7 @@ async function release(options) {
   await command("pnpm", ["exec", "cap", "sync", "android"], { cwd: APP_DIR });
   await commandTee("./gradlew", ["assembleRelease", ...versionArgs(), "-q"], { cwd: ANDROID_DIR });
 
-  const apk = join(
-    ANDROID_DIR,
-    "app",
-    "build",
-    "outputs",
-    "apk",
-    "release",
-    "app-release.apk",
-  );
+  const apk = join(ANDROID_DIR, "app", "build", "outputs", "apk", "release", "app-release.apk");
   if (!existsSync(apk)) {
     fail(`Gradle reported success but ${apk} is missing.`, "Check the Gradle output above.");
     return false;

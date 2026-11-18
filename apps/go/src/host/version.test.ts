@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import gradle from "../../android/app/build.gradle?raw" with { type: "raw" };
 import appConfig from "../../app.config.json" with { type: "json" };
 import pkg from "../../package.json" with { type: "json" };
-import gradle from "../../android/app/build.gradle?raw" with { type: "raw" };
 
 /**
  * One version, three places that must agree.

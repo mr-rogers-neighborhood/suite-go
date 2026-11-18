@@ -11,7 +11,7 @@
   "scripts": {
     "build": "pnpm -r --workspace-concurrency=1 run build",
     "build:verify": "pnpm -r run build && git diff --exit-code -- packages",
-    "check": "biome check . && pnpm typecheck && vitest run && pnpm build:verify",
+    "check": "biome check . && pnpm typecheck && vitest run && node scripts/check-dist.mjs",
     "check:full": "pnpm check",
     "format": "biome format --write .",
     "lint": "biome check .",
