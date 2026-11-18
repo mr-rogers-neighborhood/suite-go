@@ -41,29 +41,69 @@ export interface FrameHostOptions {
   readonly moduleId: string;
   /** The shell's window. Defaults to `window.parent`, which is why this only works in a frame. */
   readonly parent?: Window;
+  /**
+   * How long a request may wait for an answer before it is rejected.
+   *
+   * There was no timeout, and the consequence was worse than it looks: requests are serialised through
+   * one chain, so a single unanswered request stalled **every** later one — including the debounced
+   * save. A reply is dropped when the frame's window is gone (`serveFrame` returns early), so this is
+   * reachable, not theoretical; it was only invisible because a frame usually dies with its realm.
+   *
+   * Ten seconds is generous on purpose: a cold start loads 3.6 MB of WebAssembly before the first
+   * document call, and rejecting a slow boot would be a worse bug than the one this fixes.
+   */
+  readonly requestTimeoutMs?: number;
 }
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
 export function createFrameHost(
   options: FrameHostOptions,
 ): ModuleHost & { currentTheme(): Promise<ThemeTokens>; dispose(): void } {
   const parent = options.parent ?? globalThis.parent;
-  const pending = new Map<number, (reply: FrameReply) => void>();
+  const timeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  const pending = new Map<
+    number,
+    { resolve: (reply: FrameReply) => void; reject: (error: Error) => void }
+  >();
   let nextId = 1;
   let queue: Promise<unknown> = Promise.resolve();
 
   const listener = (event: MessageEvent) => {
     if (!isFrameReply(event.data)) return;
-    const resolve = pending.get(event.data.id);
-    if (!resolve) return;
+    const waiting = pending.get(event.data.id);
+    if (!waiting) return;
     pending.delete(event.data.id);
-    resolve(event.data);
+    waiting.resolve(event.data);
   };
   globalThis.addEventListener("message", listener);
 
   const send = (request: FrameRequest, payload?: string): Promise<ReplyValue> => {
     const run = async (): Promise<ReplyValue> => {
       const id = nextId++;
-      const answer = new Promise<FrameReply>((resolve) => pending.set(id, resolve));
+      const answer = new Promise<FrameReply>((resolve, reject) => {
+        // `unref` is not available in a WebView; the timer is cleared on settle instead, which is
+        // enough because nothing else keeps a frame's lifetime beyond `dispose`.
+        const timer = setTimeout(() => {
+          if (!pending.delete(id)) return;
+          reject(
+            new Error(
+              `the shell did not answer ${request.method} within ${timeoutMs} ms; ` +
+                "it may have been released while this module was open",
+            ),
+          );
+        }, timeoutMs);
+        pending.set(id, {
+          resolve: (reply) => {
+            clearTimeout(timer);
+            resolve(reply);
+          },
+          reject: (error) => {
+            clearTimeout(timer);
+            reject(error);
+          },
+        });
+      });
       parent.postMessage(
         { protocol: FRAME_PROTOCOL, id, request, ...(payload === undefined ? {} : { payload }) },
         "*",
@@ -78,8 +118,12 @@ export function createFrameHost(
   };
 
   const documents = {
-    async list() {
-      const value = await send({ method: "documents.list" });
+    async list(moduleId?: string) {
+      const value = await send(
+        moduleId === undefined
+          ? { method: "documents.list" }
+          : { method: "documents.list", moduleId },
+      );
       return (value as unknown as readonly DocumentRecord[]) ?? [];
     },
     async create(input: { name: string }) {
@@ -157,6 +201,11 @@ export function createFrameHost(
     },
     dispose() {
       globalThis.removeEventListener("message", listener);
+      // Reject rather than clear: a caller awaiting a request has to learn it will never be
+      // answered, or it waits forever on a promise nobody holds any more.
+      for (const [, waiting] of pending) {
+        waiting.reject(new Error("the shell released this module before answering"));
+      }
       pending.clear();
     },
   };

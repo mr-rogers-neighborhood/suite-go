@@ -17,7 +17,15 @@ export const FRAME_PROTOCOL = "suite.frame.v1";
 export type FrameRequest =
   | { readonly method: "ready" }
   | { readonly method: "theme" }
-  | { readonly method: "documents.list" }
+  /**
+   * `moduleId` narrows the answer to one domain's documents.
+   *
+   * It has to travel, because a pack cannot ask the shell's `DocumentStore` directly and the shell
+   * must not guess: a pack that asked for its own documents and received every domain's would be
+   * one `list()[0]` away from opening somebody else's file. Omitted means the recents query, which
+   * is the same thing it means inside the shell.
+   */
+  | { readonly method: "documents.list"; readonly moduleId?: string }
   | { readonly method: "documents.create"; readonly name: string }
   | { readonly method: "documents.open"; readonly id: string }
   | { readonly method: "documents.save"; readonly id: string; readonly title?: string }

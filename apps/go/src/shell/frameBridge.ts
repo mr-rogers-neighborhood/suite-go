@@ -107,7 +107,10 @@ async function answer(
         return { ok: true, value: options.theme() };
 
       case "documents.list": {
-        const list: readonly DocumentSummary[] = await host.documents.list();
+        // The request may narrow to one module. A pack cannot invent another domain's id into
+        // anything dangerous — it still only receives summaries — but honouring the argument is
+        // what makes "list my documents" mean that, instead of "list everything".
+        const list: readonly DocumentSummary[] = await host.documents.list(request.moduleId);
         return { ok: true, value: list };
       }
 
